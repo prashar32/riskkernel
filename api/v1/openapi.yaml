@@ -156,6 +156,33 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /v1/approvals:
+    get:
+      tags: [approvals]
+      operationId: listApprovals
+      summary: List approval requests
+      description: |
+        Lists human-in-the-loop approval requests, optionally filtered by status.
+        Used by the CLI and the local admin page to surface what is pending.
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [pending, approved, denied]
+      responses:
+        '200':
+          description: Matching approvals, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApprovalRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
   /v1/checkpoints/{run_id}:
     get:
       tags: [checkpoints]
@@ -412,9 +439,12 @@ components:
     ApprovalRequest:
       type: object
       required: [id, tool, createdAt]
-      description: A side-effecting action paused awaiting human approval.
+      description: A side-effecting action gated for human approval (pending or resolved).
       properties:
         id:
+          type: string
+          format: uuid
+        runId:
           type: string
           format: uuid
         stepIndex:
@@ -430,7 +460,18 @@ components:
           type: object
           additionalProperties: true
           description: The proposed call arguments, for the human to review.
+        status:
+          type: string
+          enum: [pending, approved, denied]
+        reason:
+          type: string
+          description: Human note recorded with the decision (once resolved).
+        decidedBy:
+          type: string
         createdAt:
+          type: string
+          format: date-time
+        decidedAt:
           type: string
           format: date-time
 

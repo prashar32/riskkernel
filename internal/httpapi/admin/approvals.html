@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RiskKernel — Approvals</title>
+  <style>
+    body { font: 14px/1.5 -apple-system, system-ui, sans-serif; margin: 2rem auto; max-width: 880px; color: #1a1a1a; }
+    h1 { font-size: 1.4rem; }
+    .muted { color: #666; }
+    .token { margin: 1rem 0; }
+    .token input { padding: .4rem; width: 22rem; font-family: monospace; }
+    .card { border: 1px solid #ddd; border-radius: 8px; padding: 1rem; margin: .75rem 0; }
+    .card h3 { margin: 0 0 .25rem; font-size: 1rem; }
+    .meta { color: #555; font-size: .85rem; }
+    pre { background: #f6f8fa; padding: .5rem; border-radius: 6px; overflow-x: auto; font-size: .8rem; }
+    button { padding: .4rem .9rem; border-radius: 6px; border: 1px solid #ccc; cursor: pointer; font-size: .9rem; }
+    .approve { background: #1f883d; color: #fff; border-color: #1f883d; }
+    .deny { background: #cf222e; color: #fff; border-color: #cf222e; margin-left: .5rem; }
+    .empty { color: #888; padding: 2rem 0; }
+  </style>
+</head>
+<body>
+  <h1>Pending approvals</h1>
+  <p class="muted">Side-effecting tool calls paused for human review. The LLM proposes; you dispose.</p>
+
+  <div class="token">
+    <label>API token (if set): <input id="token" type="password" placeholder="leave empty for local/no-auth"></label>
+    <button onclick="save()">Save &amp; refresh</button>
+  </div>
+
+  <div id="list"><p class="empty">Loading…</p></div>
+
+  <script>
+    const tokenInput = document.getElementById('token');
+    tokenInput.value = localStorage.getItem('rk_token') || '';
+    function save() { localStorage.setItem('rk_token', tokenInput.value); load(); }
+    function headers() {
+      const h = { 'content-type': 'application/json' };
+      const t = localStorage.getItem('rk_token');
+      if (t) h['Authorization'] = 'Bearer ' + t;
+      return h;
+    }
+    async function load() {
+      const el = document.getElementById('list');
+      try {
+        const res = await fetch('/v1/approvals?status=pending', { headers: headers() });
+        if (!res.ok) { el.innerHTML = '<p class="empty">Error ' + res.status + ' — check the API token.</p>'; return; }
+        const items = await res.json();
+        if (!items.length) { el.innerHTML = '<p class="empty">Nothing pending. 🎉</p>'; return; }
+        el.innerHTML = items.map(render).join('');
+      } catch (e) { el.innerHTML = '<p class="empty">' + e + '</p>'; }
+    }
+    function render(a) {
+      const args = a.arguments ? JSON.stringify(a.arguments, null, 2) : '{}';
+      return `<div class="card">
+        <h3>${esc(a.tool)} <span class="meta">(${esc(a.sideEffect || 'side effect')})</span></h3>
+        <div class="meta">run ${esc(a.runId)} · step ${a.stepIndex} · ${esc(a.createdAt)}</div>
+        <pre>${esc(args)}</pre>
+        <button class="approve" onclick="resolve('${a.runId}','${a.id}','approve')">Approve</button>
+        <button class="deny" onclick="resolve('${a.runId}','${a.id}','deny')">Deny</button>
+      </div>`;
+    }
+    async function resolve(runId, id, decision) {
+      const reason = decision === 'deny' ? (prompt('Reason for denial (optional):') || '') : '';
+      const res = await fetch('/v1/runs/' + encodeURIComponent(runId) + '/approve', {
+        method: 'POST', headers: headers(),
+        body: JSON.stringify({ approvalId: id, decision, reason, decidedBy: 'web' })
+      });
+      if (!res.ok) { alert('Failed: ' + res.status); return; }
+      load();
+    }
+    function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+    load();
+    setInterval(load, 5000);
+  </script>
+</body>
+</html>

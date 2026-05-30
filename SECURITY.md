@@ -8,8 +8,8 @@ RiskKernel is a reliability and governance daemon for AI agents. It runs on infr
 
 This is verifiable, and we intend for you to verify it:
 
-- **Read the code.** All network egress originates in `internal/provider/` (calls to LLM providers) and `internal/otel/` (only when *you* configure an OTLP endpoint). There is no other outbound HTTP client in the codebase.
-- **Watch the wire.** Run RiskKernel under `tcpdump`/`Little Snitch`/`mitmproxy` and confirm the only destinations are your configured provider and OTLP endpoints.
+- **Read the code.** All network egress originates in three places, each going only where *you* point it: `internal/provider/` (calls to the LLM providers you configure), `internal/otel/` (spans, only when you set an OTLP endpoint), and `internal/approval/` (the approval webhook, only when you set `RISKKERNEL_APPROVAL_WEBHOOK`). The webhook payload carries the pending approval's metadata (run id, tool, side effect, arguments) — never provider keys or other secrets. There is no other outbound HTTP client in the codebase.
+- **Watch the wire.** Run RiskKernel under `tcpdump`/`Little Snitch`/`mitmproxy` and confirm the only destinations are your configured provider, OTLP, and (if set) approval-webhook endpoints.
 - **Build gates.** CI fails if a disallowed network import appears outside the provider/otel packages.
 
 Any future "you're N versions behind" hint is a local startup log line comparing against a build-time constant — it makes no network call. An optional `--share-anonymous-usage` flag may exist someday; it will be **OFF by default** and clearly documented.

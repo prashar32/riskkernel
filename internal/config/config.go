@@ -43,6 +43,20 @@ type Config struct {
 	// an endpoint is set — RiskKernel never emits telemetry unless the user points
 	// it at their own OTLP backend.
 	OTel OTelConfig
+
+	// Approval configures the human-in-the-loop gate.
+	Approval ApprovalConfig
+}
+
+// ApprovalConfig configures the human-in-the-loop approval gate.
+type ApprovalConfig struct {
+	// DefaultSafe requires approval for any side-effecting tool call not otherwise
+	// allowed. Read from RISKKERNEL_APPROVAL_DEFAULT_SAFE (default true — fail
+	// closed on side effects).
+	DefaultSafe bool
+	// WebhookURL, if set, receives a JSON POST when an approval becomes pending.
+	// Read from RISKKERNEL_APPROVAL_WEBHOOK. User-configured egress only.
+	WebhookURL string
 }
 
 // OTelConfig configures OTLP trace export, using standard OpenTelemetry env vars
@@ -102,8 +116,26 @@ func Load() (*Config, error) {
 		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
 		DefaultBudget:   budget,
 		OTel:            loadOTel(),
+		Approval: ApprovalConfig{
+			DefaultSafe: envBoolDefault("RISKKERNEL_APPROVAL_DEFAULT_SAFE", true),
+			WebhookURL:  os.Getenv("RISKKERNEL_APPROVAL_WEBHOOK"),
+		},
 	}
 	return cfg, nil
+}
+
+// envBoolDefault parses a boolean env var, returning def when unset. Accepts
+// "true"/"false" (case-insensitive) and "1"/"0".
+func envBoolDefault(key string, def bool) bool {
+	v := strings.TrimSpace(os.Getenv(key))
+	switch strings.ToLower(v) {
+	case "":
+		return def
+	case "true", "1", "yes":
+		return true
+	default:
+		return false
+	}
 }
 
 // loadOTel resolves OpenTelemetry export config from standard OTEL_* env vars.

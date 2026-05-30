@@ -253,6 +253,46 @@ func TestListRunsByStatus(t *testing.T) {
 	}
 }
 
+func TestApprovals(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	mustRun(t, s, "run-ap", now)
+
+	a := ApprovalRecord{
+		ID: "ap-1", RunID: "run-ap", StepIndex: 3, Tool: "mcp://shell", SideEffect: "exec",
+		Arguments: map[string]any{"cmd": "ls"}, Status: ApprovalPending, CreatedAt: now,
+	}
+	if err := s.CreateApproval(ctx, a); err != nil {
+		t.Fatalf("CreateApproval: %v", err)
+	}
+
+	pending, err := s.ListApprovals(ctx, ApprovalPending)
+	if err != nil || len(pending) != 1 {
+		t.Fatalf("ListApprovals pending = %v, %v", pending, err)
+	}
+	if pending[0].Arguments["cmd"] != "ls" {
+		t.Errorf("args not round-tripped: %+v", pending[0].Arguments)
+	}
+
+	// Resolve it.
+	if err := s.ResolveApproval(ctx, "ap-1", ApprovalApproved, "ok", "alice", now.Add(time.Minute)); err != nil {
+		t.Fatalf("ResolveApproval: %v", err)
+	}
+	got, _ := s.GetApproval(ctx, "ap-1")
+	if got.Status != ApprovalApproved || got.DecidedBy != "alice" || got.DecidedAt == nil {
+		t.Fatalf("resolved approval = %+v", got)
+	}
+
+	// Pending list now empty; double-resolve fails.
+	if pend, _ := s.ListApprovals(ctx, ApprovalPending); len(pend) != 0 {
+		t.Errorf("expected no pending after resolve, got %d", len(pend))
+	}
+	if err := s.ResolveApproval(ctx, "ap-1", ApprovalDenied, "", "", now); !errors.Is(err, ErrNotFound) {
+		t.Errorf("double-resolve should return ErrNotFound, got %v", err)
+	}
+}
+
 func mustRun(t *testing.T, s *SQLite, id string, now time.Time) {
 	t.Helper()
 	if err := s.UpsertRun(context.Background(), RunRecord{
