@@ -48,6 +48,8 @@ func main() {
 		err = runApprovals(args)
 	case "memory":
 		err = runMemory(args)
+	case "healthcheck":
+		err = runHealthcheck(args)
 	case "version", "--version", "-v":
 		fmt.Println("riskkernel", version.String())
 	case "help", "--help", "-h":
@@ -78,6 +80,7 @@ Usage:
   riskkernel approvals deny <id> [--reason ...]     Deny a pending request
   riskkernel memory list [namespace]                List git-native memory entries
   riskkernel memory show <name> [namespace]         Print a memory file
+  riskkernel healthcheck        Probe /healthz (used by the Docker HEALTHCHECK)
   riskkernel version            Print build identity
   riskkernel help               Show this help
 
