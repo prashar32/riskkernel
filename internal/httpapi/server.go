@@ -56,14 +56,20 @@ func (s *Server) Handler() http.Handler {
 	if s.runs != nil {
 		mux.HandleFunc("GET /v1/checkpoints/{run_id}", s.requireAuth(s.handleGetCheckpoint))
 		mux.HandleFunc("GET /v1/runs/{id}", s.requireAuth(s.handleGetRun))
+		// Run lifecycle control (Surface 2 — the Python SDK drives these).
+		mux.HandleFunc("POST /v1/runs", s.requireAuth(s.handleCreateRun))
+		mux.HandleFunc("POST /v1/runs/{id}/steps", s.requireAuth(s.handleBeginStep))
+		mux.HandleFunc("POST /v1/runs/{id}/checkpoints", s.requireAuth(s.handleSaveCheckpoint))
+		mux.HandleFunc("POST /v1/runs/{id}/cancel", s.requireAuth(s.handleCancelRun))
 	}
 	if s.approvals != nil {
 		mux.HandleFunc("POST /v1/runs/{id}/approve", s.requireAuth(s.handleApprove))
+		mux.HandleFunc("POST /v1/runs/{id}/approvals", s.requireAuth(s.handleRequestApproval))
 		mux.HandleFunc("GET /v1/approvals", s.requireAuth(s.handleListApprovals))
+		mux.HandleFunc("GET /v1/approvals/{id}", s.requireAuth(s.handleGetApproval))
 		// Local admin web page (Surface: human-in-the-loop, pull channel).
 		mux.HandleFunc("GET /admin/approvals", s.requireAuth(s.handleAdminApprovalsPage))
 	}
-	// Further /v1 routes (full runs API) land in later build steps.
 
 	return s.recoverer(mux)
 }

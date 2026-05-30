@@ -62,5 +62,14 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   (surfaces `pendingApproval` + `waiting_approval` status). Approvals are persisted
   (migration `00003`) as an audit trail. Webhook is user-configured egress only
   (see SECURITY.md).
+- **Run-control API** — `POST /v1/runs` (create with budget),
+  `POST /v1/runs/{id}/steps` (loop/time enforcement → 402 on halt),
+  `POST /v1/runs/{id}/checkpoints`, `POST /v1/runs/{id}/cancel`,
+  `POST /v1/runs/{id}/approvals` (request → poll), `GET /v1/approvals/{id}`.
+- **Python SDK (Surface 2)** — `pip install riskkernel`, a stdlib-only thin client:
+  `Runtime`, `governed_run`, `Budget`, `Run.step/checkpoint/cancel/proxy_config`,
+  `ApprovalGate`, `@governed_tool`. Lazy-imported framework adapters for LangChain
+  (callback handler), the Claude Agent SDK (PreToolUse hook), and the OpenAI Agents
+  SDK (RunHooks). Verified end-to-end against the daemon; CI on Python 3.9/3.12.
 
 [Unreleased]: https://github.com/prashar32/riskkernel/commits/main
