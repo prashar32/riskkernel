@@ -80,25 +80,23 @@ func runServe(_ []string) error {
 	if err != nil {
 		return err
 	}
-	log := app.NewLogger()
-
-	registry, err := app.BuildRegistry(cfg)
+	deps, err := app.Build(cfg)
 	if err != nil {
 		return err
 	}
 
 	if cfg.APIToken == "" {
-		log.Warn("RISKKERNEL_API_TOKEN is not set — the API is unauthenticated; do not expose this port to an untrusted network")
+		deps.Log.Warn("RISKKERNEL_API_TOKEN is not set — the API is unauthenticated; do not expose this port to an untrusted network")
 	}
 	if cfg.AnthropicAPIKey == "" {
-		log.Warn("ANTHROPIC_API_KEY is not set — model calls will fail until a key is provided")
+		deps.Log.Warn("ANTHROPIC_API_KEY is not set — model calls will fail until a key is provided")
 	}
 
 	// SIGINT/SIGTERM cancel the root context, which drains the server cleanly.
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	srv := httpapi.New(cfg, registry, log)
+	srv := httpapi.New(cfg, deps.Gateway, deps.Runs, deps.Log)
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	return srv.Serve(ctx, addr)
 }

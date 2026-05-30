@@ -1,0 +1,226 @@
+// Package gateway implements Surface 1 — the zero-code on-ramp. It exposes an
+// OpenAI-compatible endpoint (/v1/chat/completions) and an Anthropic-compatible
+// endpoint (/v1/messages). A user changes ONE env var
+// (OPENAI_BASE_URL=http://localhost:7070/v1) and every call is intercepted:
+// tagged with a run-id/step-id, governed by the deterministic budget enforcer,
+// priced into the cost ledger, and forwarded to the real provider with the
+// user's key.
+//
+// Streaming is not supported in v0.1 (mid-stream budget enforcement is deferred);
+// stream requests are rejected with a clear error rather than silently degraded.
+package gateway
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/prashar32/riskkernel/internal/governor"
+	"github.com/prashar32/riskkernel/internal/httpx"
+	"github.com/prashar32/riskkernel/internal/pricing"
+	"github.com/prashar32/riskkernel/internal/provider"
+	"github.com/prashar32/riskkernel/internal/runs"
+)
+
+// Middleware wraps a handler (e.g. with auth). Identity is a no-op default.
+type Middleware func(http.HandlerFunc) http.HandlerFunc
+
+// Run-grouping request header and the response headers the gateway stamps onto
+// every governed call. These names are part of the proxy's stable surface.
+const (
+	HeaderRunID      = "X-RiskKernel-Run-Id"
+	headerStep       = "X-RiskKernel-Step"
+	headerCostUSD    = "X-RiskKernel-Cost-Usd"
+	headerTokens     = "X-RiskKernel-Tokens"
+	headerHaltReason = "X-RiskKernel-Halt-Reason"
+)
+
+// Gateway holds the dependencies for the proxy handlers.
+type Gateway struct {
+	providers *provider.Registry
+	runs      *runs.Manager
+	prices    *pricing.Table
+	log       *slog.Logger
+}
+
+// New constructs a Gateway.
+func New(providers *provider.Registry, mgr *runs.Manager, prices *pricing.Table, log *slog.Logger) *Gateway {
+	return &Gateway{providers: providers, runs: mgr, prices: prices, log: log}
+}
+
+// Register mounts the proxy routes on mux, each wrapped by mw (e.g. auth). A nil
+// mw means no wrapping.
+func (g *Gateway) Register(mux *http.ServeMux, mw Middleware) {
+	if mw == nil {
+		mw = func(h http.HandlerFunc) http.HandlerFunc { return h }
+	}
+	mux.HandleFunc("POST /v1/chat/completions", mw(g.handleChatCompletions))
+	mux.HandleFunc("POST /v1/messages", mw(g.handleMessages))
+}
+
+// gwError is an internal error carrying an HTTP status and api/v1 Error fields.
+type gwError struct {
+	status  int
+	code    string
+	message string
+}
+
+// callMeta is the governance bookkeeping returned alongside a successful call.
+type callMeta struct {
+	step   int32
+	cost   float64
+	priced bool
+	halt   governor.HaltReason // non-empty if THIS call exhausted a budget
+}
+
+// governedCall runs the full deterministic governance cycle around one provider
+// call: begin step (loop/time budget) → pre-call hard ceiling → route by model →
+// forward → price → record usage. The provider call's context is cancelled if the
+// run is killed/expires OR the client disconnects.
+func (g *Gateway) governedCall(httpReq *http.Request, run *runs.Run, preq provider.Request) (*provider.Response, callMeta, *gwError) {
+	step, err := run.BeginStep()
+	if err != nil {
+		return nil, callMeta{}, budgetError(err)
+	}
+	if err := run.CanProceed(); err != nil {
+		return nil, callMeta{}, budgetError(err)
+	}
+
+	prov, err := g.providers.Get(routeModel(preq.Model))
+	if err != nil {
+		return nil, callMeta{}, &gwError{http.StatusBadRequest, "unknown_provider", err.Error()}
+	}
+
+	// The call dies if the run is governed-cancelled/expired (parent) or the
+	// client goes away.
+	callCtx, cancel := context.WithCancel(run.Context())
+	defer cancel()
+	stop := context.AfterFunc(httpReq.Context(), cancel)
+	defer stop()
+
+	resp, err := prov.Chat(callCtx, preq)
+	if err != nil {
+		// If the governor halted mid-call (time budget / kill switch), report that
+		// rather than a generic provider error.
+		if run.Halted() {
+			return nil, callMeta{}, haltGWError(run.HaltReason())
+		}
+		return nil, callMeta{}, &gwError{http.StatusBadGateway, "provider_error", err.Error()}
+	}
+
+	cost, priced := g.prices.Cost(resp.Model, resp.Usage.PromptTokens, resp.Usage.CompletionTokens)
+
+	meta := callMeta{step: step, cost: cost, priced: priced}
+	// The call already happened and was paid for — never discard its result. If
+	// this usage exhausted a budget, surface the halt via a header so the NEXT
+	// call is refused, but return the response the user paid for.
+	if recErr := run.RecordUsage(resp.Usage.PromptTokens, resp.Usage.CompletionTokens, cost); recErr != nil {
+		meta.halt = haltReasonOf(recErr)
+	}
+	return resp, meta, nil
+}
+
+// stampHeaders writes the governance headers onto a successful proxied response.
+func stampHeaders(w http.ResponseWriter, run *runs.Run, resp *provider.Response, meta callMeta) {
+	w.Header().Set(HeaderRunID, run.ID)
+	w.Header().Set(headerStep, strconv.Itoa(int(meta.step)))
+	w.Header().Set(headerCostUSD, strconv.FormatFloat(meta.cost, 'f', 6, 64))
+	w.Header().Set(headerTokens, strconv.FormatInt(resp.Usage.Total(), 10))
+	if meta.halt != governor.HaltNone {
+		w.Header().Set(headerHaltReason, string(meta.halt))
+	}
+}
+
+// resolveRun returns the run a request belongs to: the one named by the run-id
+// header (lazily created under the default budget), or a fresh ephemeral run for
+// an unGrouped single call.
+func (g *Gateway) resolveRun(httpReq *http.Request) *runs.Run {
+	if rid := httpReq.Header.Get(HeaderRunID); rid != "" {
+		return g.runs.GetOrCreate(rid)
+	}
+	return g.runs.Create(runs.CreateOptions{Name: "proxy"})
+}
+
+// routeModel maps a model id to a provider name by prefix. An empty result routes
+// to the registry's default provider. v0.1 implements Anthropic natively; OpenAI
+// is a stub (front the long tail with LiteLLM, per CLAUDE.md §4).
+func routeModel(model string) string {
+	m := strings.ToLower(model)
+	switch {
+	case strings.HasPrefix(m, "claude"):
+		return "anthropic"
+	case strings.HasPrefix(m, "gpt"), strings.HasPrefix(m, "o1"), strings.HasPrefix(m, "o3"):
+		return "openai"
+	default:
+		return "" // default provider
+	}
+}
+
+func (g *gwError) write(w http.ResponseWriter) {
+	httpx.WriteError(w, g.status, g.code, g.message)
+}
+
+// budgetError converts a *governor.HaltError into a 402 gwError, or returns a
+// generic 500 if err is not a halt (should not happen on the governance path).
+func budgetError(err error) *gwError {
+	return haltGWError(haltReasonOf(err))
+}
+
+func haltGWError(reason governor.HaltReason) *gwError {
+	if reason == governor.HaltNone {
+		return &gwError{http.StatusInternalServerError, "internal_error", "run not runnable"}
+	}
+	return &gwError{
+		status:  http.StatusPaymentRequired, // 402: the run is out of budget
+		code:    string(reason),
+		message: "run halted: " + string(reason),
+	}
+}
+
+func haltReasonOf(err error) governor.HaltReason {
+	var he *governor.HaltError
+	if errors.As(err, &he) {
+		return he.Reason
+	}
+	return governor.HaltNone
+}
+
+// --- shared body helpers ---
+
+// decodeContent extracts text from a message content field that may be a plain
+// string or an array of typed blocks (OpenAI and Anthropic both allow both).
+func decodeContent(raw json.RawMessage) string {
+	if len(raw) == 0 {
+		return ""
+	}
+	var s string
+	if json.Unmarshal(raw, &s) == nil {
+		return s
+	}
+	var blocks []struct {
+		Type string `json:"type"`
+		Text string `json:"text"`
+	}
+	if json.Unmarshal(raw, &blocks) == nil {
+		var sb strings.Builder
+		for _, b := range blocks {
+			sb.WriteString(b.Text)
+		}
+		return sb.String()
+	}
+	return ""
+}
+
+func readBody(r *http.Request, max int64) ([]byte, error) {
+	return io.ReadAll(io.LimitReader(r.Body, max))
+}
+
+const maxBodyBytes = 10 << 20 // 10 MiB
+
+func unixNow() int64 { return time.Now().Unix() }

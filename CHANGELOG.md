@@ -20,5 +20,16 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 - **Provider abstraction** — `Provider` interface returning token usage; native
   Anthropic Messages implementation; OpenAI / Bedrock / Ollama stubbed.
 - **`riskkernel serve`** — daemon skeleton with health and version endpoints.
+- **Deterministic governor** — hard per-run token / dollar / loop / wall-clock
+  budgets with a kill switch, enforced in Go around every call. Halts cancel the
+  run's context to interrupt in-flight calls.
+- **Cost pricing** — static, config-overridable USD/1M-token price table.
+- **OpenAI-compatible proxy (Surface 1)** — `POST /v1/chat/completions` and
+  `POST /v1/messages`. The zero-code on-ramp: one env var
+  (`OPENAI_BASE_URL=http://localhost:7070/v1`) puts every call under governance.
+  Stamps `X-RiskKernel-*` headers (run-id, step, cost, tokens, halt reason);
+  returns `402` when a run is out of budget. Bearer token doubles as a virtual
+  key. Streaming is rejected (501) in v0.1.
+- **Default budget config** — `RISKKERNEL_DEFAULT_{TOKENS,DOLLARS,LOOPS,SECONDS}`.
 
 [Unreleased]: https://github.com/prashar32/riskkernel/commits/main

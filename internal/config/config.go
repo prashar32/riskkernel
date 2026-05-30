@@ -34,6 +34,19 @@ type Config struct {
 	// setups need no change. Never stored or logged.
 	AnthropicAPIKey string // ANTHROPIC_API_KEY
 	OpenAIAPIKey    string // OPENAI_API_KEY
+
+	// DefaultBudget is applied to runs created without an explicit budget — e.g.
+	// proxy calls that supply only a run-id. Any zero field is unlimited.
+	DefaultBudget BudgetConfig
+}
+
+// BudgetConfig holds raw budget values (no governor dependency here so config
+// stays a leaf package). Zero in any field means unlimited for that dimension.
+type BudgetConfig struct {
+	Tokens  int64   // RISKKERNEL_DEFAULT_TOKENS
+	Dollars float64 // RISKKERNEL_DEFAULT_DOLLARS
+	Loops   int32   // RISKKERNEL_DEFAULT_LOOPS
+	Seconds int32   // RISKKERNEL_DEFAULT_SECONDS
 }
 
 // Load resolves configuration. It first loads KEY=VALUE pairs from .env (if
@@ -53,6 +66,11 @@ func Load() (*Config, error) {
 		port = p
 	}
 
+	budget, err := loadBudget()
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &Config{
 		Port:            port,
 		DataDir:         getenvDefault("RISKKERNEL_DATA_DIR", "./data"),
@@ -60,8 +78,57 @@ func Load() (*Config, error) {
 		DefaultProvider: getenvDefault("RISKKERNEL_DEFAULT_PROVIDER", "anthropic"),
 		AnthropicAPIKey: os.Getenv("ANTHROPIC_API_KEY"),
 		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
+		DefaultBudget:   budget,
 	}
 	return cfg, nil
+}
+
+// loadBudget reads the optional default-budget env vars. All are optional; an
+// unset or zero value means unlimited for that dimension.
+func loadBudget() (BudgetConfig, error) {
+	var b BudgetConfig
+	var err error
+	if b.Tokens, err = envInt64("RISKKERNEL_DEFAULT_TOKENS"); err != nil {
+		return b, err
+	}
+	if b.Dollars, err = envFloat("RISKKERNEL_DEFAULT_DOLLARS"); err != nil {
+		return b, err
+	}
+	var loops int64
+	if loops, err = envInt64("RISKKERNEL_DEFAULT_LOOPS"); err != nil {
+		return b, err
+	}
+	b.Loops = int32(loops)
+	var secs int64
+	if secs, err = envInt64("RISKKERNEL_DEFAULT_SECONDS"); err != nil {
+		return b, err
+	}
+	b.Seconds = int32(secs)
+	return b, nil
+}
+
+func envInt64(key string) (int64, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return 0, nil
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil || n < 0 {
+		return 0, fmt.Errorf("%s must be a non-negative integer, got %q", key, v)
+	}
+	return n, nil
+}
+
+func envFloat(key string) (float64, error) {
+	v := os.Getenv(key)
+	if v == "" {
+		return 0, nil
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil || f < 0 {
+		return 0, fmt.Errorf("%s must be a non-negative number, got %q", key, v)
+	}
+	return f, nil
 }
 
 // loadDotEnv parses a simple .env file (KEY=VALUE per line, # comments, optional

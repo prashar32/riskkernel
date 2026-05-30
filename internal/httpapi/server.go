@@ -7,7 +7,6 @@ package httpapi
 import (
 	"context"
 	"crypto/subtle"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -15,20 +14,23 @@ import (
 	"time"
 
 	"github.com/prashar32/riskkernel/internal/config"
-	"github.com/prashar32/riskkernel/internal/provider"
+	"github.com/prashar32/riskkernel/internal/gateway"
+	"github.com/prashar32/riskkernel/internal/httpx"
+	"github.com/prashar32/riskkernel/internal/runs"
 	"github.com/prashar32/riskkernel/internal/version"
 )
 
 // Server wires dependencies into an http.Handler. It holds no per-request state.
 type Server struct {
-	cfg       *config.Config
-	providers *provider.Registry
-	log       *slog.Logger
+	cfg     *config.Config
+	gateway *gateway.Gateway
+	runs    *runs.Manager
+	log     *slog.Logger
 }
 
 // New constructs a Server.
-func New(cfg *config.Config, providers *provider.Registry, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, providers: providers, log: log}
+func New(cfg *config.Config, gw *gateway.Gateway, mgr *runs.Manager, log *slog.Logger) *Server {
+	return &Server{cfg: cfg, gateway: gw, runs: mgr, log: log}
 }
 
 // Handler returns the root HTTP handler with all routes mounted.
@@ -40,18 +42,24 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /healthz", s.handleHealthz)
 	mux.HandleFunc("GET /version", s.handleVersion)
 
-	// Authenticated routes are registered here as later build steps land
-	// (e.g. /v1/runs, the OpenAI-compatible proxy). They go through requireAuth.
+	// Surface 1 — the OpenAI/Anthropic-compatible proxy, guarded by the bearer
+	// token (which doubles as the virtual key: the client sets it as its provider
+	// key and RiskKernel swaps in the real key at egress).
+	if s.gateway != nil {
+		s.gateway.Register(mux, s.requireAuth)
+	}
+
+	// Further authenticated /v1 routes (runs API) land in later build steps.
 
 	return s.recoverer(mux)
 }
 
 func (s *Server) handleHealthz(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{
+	httpx.WriteJSON(w, http.StatusOK, map[string]string{
 		"version": version.Version,
 		"commit":  version.Commit,
 		"date":    version.Date,
@@ -106,7 +114,7 @@ func (s *Server) requireAuth(next http.HandlerFunc) http.HandlerFunc {
 		h := r.Header.Get("Authorization")
 		if len(h) <= len(prefix) || h[:len(prefix)] != prefix ||
 			subtle.ConstantTimeCompare([]byte(h[len(prefix):]), []byte(s.cfg.APIToken)) != 1 {
-			writeError(w, http.StatusUnauthorized, "unauthorized", "missing or invalid bearer token")
+			httpx.WriteError(w, http.StatusUnauthorized, "unauthorized", "missing or invalid bearer token")
 			return
 		}
 		next(w, r)
@@ -119,23 +127,11 @@ func (s *Server) recoverer(next http.Handler) http.Handler {
 		defer func() {
 			if rec := recover(); rec != nil {
 				s.log.Error("panic in handler", "panic", rec, "path", r.URL.Path)
-				writeError(w, http.StatusInternalServerError, "internal_error", "internal server error")
+				httpx.WriteError(w, http.StatusInternalServerError, "internal_error", "internal server error")
 			}
 		}()
 		next.ServeHTTP(w, r)
 	})
-}
-
-// writeJSON writes v as a JSON response with the given status.
-func writeJSON(w http.ResponseWriter, status int, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-// writeError writes an Error per the api/v1 contract shape.
-func writeError(w http.ResponseWriter, status int, code, message string) {
-	writeJSON(w, status, map[string]any{"code": code, "message": message})
 }
 
 // ReadTimeout / WriteTimeout defaults for the daemon's http.Server.
