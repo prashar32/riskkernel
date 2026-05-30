@@ -6,6 +6,7 @@ package config
 import (
 	"bufio"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -245,13 +246,23 @@ func loadBudget() (BudgetConfig, error) {
 	if loops, err = envInt64("RISKKERNEL_DEFAULT_LOOPS"); err != nil {
 		return b, err
 	}
-	b.Loops = int32(loops)
+	b.Loops = clampInt32(loops)
 	var secs int64
 	if secs, err = envInt64("RISKKERNEL_DEFAULT_SECONDS"); err != nil {
 		return b, err
 	}
-	b.Seconds = int32(secs)
+	b.Seconds = clampInt32(secs)
 	return b, nil
+}
+
+// clampInt32 narrows a non-negative int64 to int32, bounding it at math.MaxInt32
+// so an out-of-range value can't silently overflow on conversion (envInt64
+// already rejects negatives).
+func clampInt32(v int64) int32 {
+	if v > math.MaxInt32 {
+		return math.MaxInt32
+	}
+	return int32(v)
 }
 
 func envInt64(key string) (int64, error) {

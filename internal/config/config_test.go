@@ -1,10 +1,30 @@
 package config
 
 import (
+	"math"
 	"os"
 	"path/filepath"
 	"testing"
 )
+
+func TestLoad_BudgetClampsInt32Overflow(t *testing.T) {
+	withCleanEnv(t)
+	chdirTemp(t)
+	// A value beyond int32 must clamp to MaxInt32, not silently overflow/wrap.
+	t.Setenv("RISKKERNEL_DEFAULT_LOOPS", "5000000000") // > math.MaxInt32
+	t.Setenv("RISKKERNEL_DEFAULT_SECONDS", "5000000000")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.DefaultBudget.Loops != math.MaxInt32 {
+		t.Errorf("Loops = %d, want clamp to %d", cfg.DefaultBudget.Loops, int32(math.MaxInt32))
+	}
+	if cfg.DefaultBudget.Seconds != math.MaxInt32 {
+		t.Errorf("Seconds = %d, want clamp to %d", cfg.DefaultBudget.Seconds, int32(math.MaxInt32))
+	}
+}
 
 func TestLoad_Defaults(t *testing.T) {
 	withCleanEnv(t)
