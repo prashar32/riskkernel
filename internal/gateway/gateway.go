@@ -92,7 +92,8 @@ func (g *Gateway) governedCall(httpReq *http.Request, run *runs.Run, preq provid
 		return nil, callMeta{}, budgetError(err)
 	}
 
-	prov, err := g.providers.Get(routeModel(preq.Model))
+	provName := routeModel(preq.Model)
+	prov, err := g.providers.Get(provName)
 	if err != nil {
 		return nil, callMeta{}, &gwError{http.StatusBadRequest, "unknown_provider", err.Error()}
 	}
@@ -119,8 +120,19 @@ func (g *Gateway) governedCall(httpReq *http.Request, run *runs.Run, preq provid
 	meta := callMeta{step: step, cost: cost, priced: priced}
 	// The call already happened and was paid for — never discard its result. If
 	// this usage exhausted a budget, surface the halt via a header so the NEXT
-	// call is refused, but return the response the user paid for.
-	if recErr := run.RecordUsage(resp.Usage.PromptTokens, resp.Usage.CompletionTokens, cost); recErr != nil {
+	// call is refused, but return the response the user paid for. RecordCall also
+	// writes the auditable ledger entry through to storage.
+	recErr := run.RecordCall(runs.Call{
+		StepIndex:        step,
+		Provider:         prov.Name(),
+		Model:            resp.Model,
+		PromptTokens:     resp.Usage.PromptTokens,
+		CompletionTokens: resp.Usage.CompletionTokens,
+		Dollars:          cost,
+		Priced:           priced,
+		ResponseID:       resp.ID,
+	})
+	if recErr != nil {
 		meta.halt = haltReasonOf(recErr)
 	}
 	return resp, meta, nil

@@ -31,5 +31,14 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   returns `402` when a run is out of budget. Bearer token doubles as a virtual
   key. Streaming is rejected (501) in v0.1.
 - **Default budget config** — `RISKKERNEL_DEFAULT_{TOKENS,DOLLARS,LOOPS,SECONDS}`.
+- **SQLite state + cost ledger** — durable `Store` interface (SQLite default,
+  Postgres later) with tables for `runs`, `steps`, `tool_calls`, and an auditable
+  `cost_ledger`. Pure-Go driver (`modernc.org/sqlite`, no cgo) keeps the single
+  static binary. Embedded Goose migrations run forward-only in a transaction on
+  startup; the daemon **refuses to start if the on-disk schema is newer** than the
+  binary (downgrade protection). WAL mode, foreign keys enforced.
+- **Write-through persistence** — the run manager persists runs, steps, and every
+  priced call to the ledger (best-effort, background context, never fails a call).
+- **CLI** — `riskkernel runs list` and `riskkernel audit export <run-id>`.
 
 [Unreleased]: https://github.com/prashar32/riskkernel/commits/main

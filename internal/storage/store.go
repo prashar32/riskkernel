@@ -1,0 +1,113 @@
+// Package storage is RiskKernel's durable state layer. The Store interface is the
+// seam behind which SQLite (default, zero-config, the file the user owns) and
+// Postgres (opt-in, later) live. Callers never see SQL. Runs, steps, tool calls,
+// and the cost ledger persist here so runs survive a crash (step 5: resume) and
+// so spend is auditable (`riskkernel audit export`).
+//
+// Schema evolution is forward-only via embedded Goose migrations (see
+// COMPATIBILITY.md): migrations run in a transaction on startup, and the daemon
+// refuses to start if the on-disk schema is newer than the binary understands.
+package storage
+
+import (
+	"context"
+	"time"
+)
+
+// RunRecord is the persisted form of a governed run.
+type RunRecord struct {
+	ID         string
+	Name       string
+	Status     string
+	HaltReason string
+
+	BudgetTokens  int64
+	BudgetDollars float64
+	BudgetLoops   int32
+	BudgetSeconds int32
+
+	UsagePromptTokens     int64
+	UsageCompletionTokens int64
+	UsageDollars          float64
+	UsageLoops            int32
+
+	Metadata  map[string]string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// StepRecord is one loop iteration of a run.
+type StepRecord struct {
+	RunID            string
+	Index            int32
+	Status           string
+	PromptTokens     int64
+	CompletionTokens int64
+	Dollars          float64
+	StartedAt        time.Time
+	EndedAt          *time.Time // nil while running
+}
+
+// LedgerEntry is one priced model call — the auditable unit of spend.
+type LedgerEntry struct {
+	RunID            string
+	StepIndex        int32
+	Provider         string
+	Model            string
+	PromptTokens     int64
+	CompletionTokens int64
+	Dollars          float64
+	Priced           bool // false when the model had no known price
+	ResponseID       string
+	CreatedAt        time.Time
+}
+
+// ToolCallRecord is a (side-effecting) tool invocation; populated by the MCP
+// gateway and HITL approval gate in later build steps.
+type ToolCallRecord struct {
+	ID         string
+	RunID      string
+	StepIndex  int32
+	Tool       string
+	SideEffect string
+	Arguments  map[string]any
+	Status     string
+	CreatedAt  time.Time
+}
+
+// LedgerTotals aggregates spend for audit/reporting.
+type LedgerTotals struct {
+	RunID            string
+	Calls            int64
+	PromptTokens     int64
+	CompletionTokens int64
+	Dollars          float64
+}
+
+// Store is the durable backend. Implementations must be safe for concurrent use.
+type Store interface {
+	// UpsertRun inserts or replaces a run row by ID.
+	UpsertRun(ctx context.Context, r RunRecord) error
+	// GetRun returns a run by ID, or ErrNotFound.
+	GetRun(ctx context.Context, id string) (RunRecord, error)
+	// ListRuns returns all runs, newest first.
+	ListRuns(ctx context.Context) ([]RunRecord, error)
+
+	// UpsertStep inserts or replaces a step row by (run_id, index).
+	UpsertStep(ctx context.Context, s StepRecord) error
+	// ListSteps returns a run's steps in index order.
+	ListSteps(ctx context.Context, runID string) ([]StepRecord, error)
+
+	// AppendLedger appends one priced call to the cost ledger.
+	AppendLedger(ctx context.Context, e LedgerEntry) error
+	// LedgerForRun returns a run's ledger entries in time order.
+	LedgerForRun(ctx context.Context, runID string) ([]LedgerEntry, error)
+	// Totals aggregates a run's ledger.
+	Totals(ctx context.Context, runID string) (LedgerTotals, error)
+
+	// AppendToolCall records a tool invocation.
+	AppendToolCall(ctx context.Context, t ToolCallRecord) error
+
+	// Close releases the backend's resources.
+	Close() error
+}

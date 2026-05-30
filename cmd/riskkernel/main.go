@@ -40,6 +40,10 @@ func main() {
 		err = runServe(args)
 	case "chat":
 		err = runChat(args)
+	case "runs":
+		err = runRuns(args)
+	case "audit":
+		err = runAudit(args)
 	case "version", "--version", "-v":
 		fmt.Println("riskkernel", version.String())
 	case "help", "--help", "-h":
@@ -60,10 +64,12 @@ func usage() {
 	fmt.Fprint(os.Stderr, `riskkernel — the risk engine for your AI agents
 
 Usage:
-  riskkernel serve            Run the governance daemon (default :7070)
-  riskkernel chat "<prompt>"  One-shot model call (proves the provider path)
-  riskkernel version          Print build identity
-  riskkernel help             Show this help
+  riskkernel serve              Run the governance daemon (default :7070)
+  riskkernel chat "<prompt>"    One-shot model call (proves the provider path)
+  riskkernel runs list          List persisted governed runs
+  riskkernel audit export <id>  Export a run's cost ledger as JSON
+  riskkernel version            Print build identity
+  riskkernel help               Show this help
 
 Configuration comes from the environment and an optional .env file:
   RISKKERNEL_PORT             Daemon port (default 7070)
@@ -84,6 +90,7 @@ func runServe(_ []string) error {
 	if err != nil {
 		return err
 	}
+	defer func() { _ = deps.Close() }()
 
 	if cfg.APIToken == "" {
 		deps.Log.Warn("RISKKERNEL_API_TOKEN is not set — the API is unauthenticated; do not expose this port to an untrusted network")

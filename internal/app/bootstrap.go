@@ -5,8 +5,10 @@
 package app
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 
 	"github.com/prashar32/riskkernel/internal/config"
 	"github.com/prashar32/riskkernel/internal/gateway"
@@ -14,6 +16,7 @@ import (
 	"github.com/prashar32/riskkernel/internal/pricing"
 	"github.com/prashar32/riskkernel/internal/provider"
 	"github.com/prashar32/riskkernel/internal/runs"
+	"github.com/prashar32/riskkernel/internal/storage"
 )
 
 // Deps holds the constructed dependency graph for the daemon and CLI.
@@ -24,6 +27,15 @@ type Deps struct {
 	Pricing   *pricing.Table
 	Runs      *runs.Manager
 	Gateway   *gateway.Gateway
+	Store     storage.Store
+}
+
+// Close releases dependencies that hold resources (the store).
+func (d *Deps) Close() error {
+	if d.Store != nil {
+		return d.Store.Close()
+	}
+	return nil
 }
 
 // NewLogger returns the daemon's structured logger writing to stderr.
@@ -31,7 +43,8 @@ func NewLogger() *slog.Logger {
 	return slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 }
 
-// Build constructs the full dependency graph from config.
+// Build constructs the full dependency graph from config, opening and migrating
+// the durable store.
 func Build(cfg *config.Config) (*Deps, error) {
 	log := NewLogger()
 
@@ -40,8 +53,13 @@ func Build(cfg *config.Config) (*Deps, error) {
 		return nil, err
 	}
 
+	store, err := OpenStore(cfg, log)
+	if err != nil {
+		return nil, err
+	}
+
 	prices := pricing.NewTable(nil)
-	mgr := runs.NewManager(toGovernorBudget(cfg.DefaultBudget))
+	mgr := runs.NewManager(toGovernorBudget(cfg.DefaultBudget)).WithStore(store, log)
 	gw := gateway.New(registry, mgr, prices, log)
 
 	return &Deps{
@@ -51,7 +69,23 @@ func Build(cfg *config.Config) (*Deps, error) {
 		Pricing:   prices,
 		Runs:      mgr,
 		Gateway:   gw,
+		Store:     store,
 	}, nil
+}
+
+// OpenStore creates the data directory and opens the SQLite store (the file the
+// user owns), running forward migrations on the way up.
+func OpenStore(cfg *config.Config, log *slog.Logger) (storage.Store, error) {
+	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
+		return nil, fmt.Errorf("creating data dir %q: %w", cfg.DataDir, err)
+	}
+	dbPath := filepath.Join(cfg.DataDir, "riskkernel.db")
+	store, err := storage.OpenSQLite(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	log.Info("state store ready", "path", dbPath)
+	return store, nil
 }
 
 // BuildRegistry constructs the provider registry from config. Anthropic is wired
