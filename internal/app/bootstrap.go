@@ -16,6 +16,7 @@ import (
 	"github.com/prashar32/riskkernel/internal/config"
 	"github.com/prashar32/riskkernel/internal/gateway"
 	"github.com/prashar32/riskkernel/internal/governor"
+	"github.com/prashar32/riskkernel/internal/mcp"
 	"github.com/prashar32/riskkernel/internal/otel"
 	"github.com/prashar32/riskkernel/internal/pricing"
 	"github.com/prashar32/riskkernel/internal/provider"
@@ -34,6 +35,7 @@ type Deps struct {
 	Store     storage.Store
 	Tracer    *otel.Tracer
 	Approvals *approval.Gate
+	MCP       *mcp.Gateway // nil when no upstream is configured
 }
 
 // Close releases dependencies that hold resources (the tracer's buffered spans,
@@ -86,6 +88,14 @@ func Build(cfg *config.Config) (*Deps, error) {
 	}
 	gate := approval.NewGate(store, approval.Policy{DefaultSafe: cfg.Approval.DefaultSafe}, notifier, log)
 
+	var mcpGW *mcp.Gateway
+	if cfg.MCP.Upstream != "" {
+		mcpGW = mcp.New(cfg.MCP.Upstream, cfg.MCP.Allowlist, cfg.MCP.ReadOnly, gate, mgr, store,
+			time.Duration(cfg.MCP.ApprovalTimeoutSeconds)*time.Second, log)
+		log.Info("mcp gateway enabled", "upstream", cfg.MCP.Upstream,
+			"allowlist", len(cfg.MCP.Allowlist), "readonly", len(cfg.MCP.ReadOnly))
+	}
+
 	return &Deps{
 		Config:    cfg,
 		Log:       log,
@@ -96,6 +106,7 @@ func Build(cfg *config.Config) (*Deps, error) {
 		Store:     store,
 		Tracer:    tracer,
 		Approvals: gate,
+		MCP:       mcpGW,
 	}, nil
 }
 
