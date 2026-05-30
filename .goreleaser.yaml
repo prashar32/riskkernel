@@ -1,0 +1,62 @@
+# GoReleaser builds the multi-arch binaries, archives, and checksums and cuts the
+# GitHub release. The signed multi-arch Docker image is built and cosign-signed by
+# the release workflow (.github/workflows/release.yml) from the main Dockerfile.
+version: 2
+
+project_name: riskkernel
+
+before:
+  hooks:
+    - go mod download
+
+builds:
+  - id: riskkernel
+    main: ./cmd/riskkernel
+    binary: riskkernel
+    env:
+      - CGO_ENABLED=0 # pure-Go SQLite (modernc) → fully static, cross-compiles
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/prashar32/riskkernel/internal/version.Version={{ .Version }}
+      - -X github.com/prashar32/riskkernel/internal/version.Commit={{ .ShortCommit }}
+      - -X github.com/prashar32/riskkernel/internal/version.Date={{ .Date }}
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    formats: [tar.gz]
+    files:
+      - LICENSE
+      - README.md
+      - SECURITY.md
+      - COMPATIBILITY.md
+
+checksum:
+  name_template: checksums.txt
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-snapshot"
+
+changelog:
+  use: github
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+      - "^ci:"
+
+release:
+  github:
+    owner: prashar32
+    name: riskkernel
+  draft: false
+  prerelease: auto
+  footer: |
+    ---
+    Self-hosted. Your keys. No telemetry. See SECURITY.md to verify.
