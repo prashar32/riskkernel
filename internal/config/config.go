@@ -50,6 +50,22 @@ type Config struct {
 	// MCP configures the MCP gateway (tool governance). Disabled unless an upstream
 	// MCP server URL is set.
 	MCP MCPConfig
+
+	// Memory configures the git-native memory layer.
+	Memory MemoryConfig
+}
+
+// MemoryConfig configures the git-native memory layer: a user-owned directory of
+// markdown/YAML the agent reads, plus episodic facts in SQLite.
+type MemoryConfig struct {
+	// Dir is the root memory directory (user-owned, git-native). Read from
+	// RISKKERNEL_MEMORY_DIR (default "./memory").
+	Dir string
+	// Embeddings enables a semantic index. OFF by default and NOT implemented in
+	// v0.1 — retrieval is deterministic keyword/path search (no vector DB). The
+	// flag exists so the default posture is explicit. Read from
+	// RISKKERNEL_MEMORY_EMBEDDINGS (default false).
+	Embeddings bool
 }
 
 // MCPConfig configures the MCP gateway: a JSON-RPC reverse proxy in front of an
@@ -148,6 +164,10 @@ func Load() (*Config, error) {
 			Allowlist:              splitList(os.Getenv("RISKKERNEL_MCP_ALLOWLIST")),
 			ReadOnly:               splitList(os.Getenv("RISKKERNEL_MCP_READONLY")),
 			ApprovalTimeoutSeconds: envIntDefault("RISKKERNEL_MCP_APPROVAL_TIMEOUT", 110),
+		},
+		Memory: MemoryConfig{
+			Dir:        getenvDefault("RISKKERNEL_MEMORY_DIR", "./memory"),
+			Embeddings: envBoolDefault("RISKKERNEL_MEMORY_EMBEDDINGS", false),
 		},
 	}
 	return cfg, nil

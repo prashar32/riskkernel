@@ -17,6 +17,7 @@ import (
 	"github.com/prashar32/riskkernel/internal/gateway"
 	"github.com/prashar32/riskkernel/internal/governor"
 	"github.com/prashar32/riskkernel/internal/mcp"
+	"github.com/prashar32/riskkernel/internal/memory"
 	"github.com/prashar32/riskkernel/internal/otel"
 	"github.com/prashar32/riskkernel/internal/pricing"
 	"github.com/prashar32/riskkernel/internal/provider"
@@ -36,6 +37,7 @@ type Deps struct {
 	Tracer    *otel.Tracer
 	Approvals *approval.Gate
 	MCP       *mcp.Gateway // nil when no upstream is configured
+	Memory    *memory.Reader
 }
 
 // Close releases dependencies that hold resources (the tracer's buffered spans,
@@ -96,6 +98,12 @@ func Build(cfg *config.Config) (*Deps, error) {
 			"allowlist", len(cfg.MCP.Allowlist), "readonly", len(cfg.MCP.ReadOnly))
 	}
 
+	memReader := memory.NewReader(cfg.Memory.Dir)
+	log.Info("memory layer ready", "dir", memReader.Root())
+	if cfg.Memory.Embeddings {
+		log.Warn("RISKKERNEL_MEMORY_EMBEDDINGS is set but embeddings are not implemented in v0.1; using deterministic keyword search")
+	}
+
 	return &Deps{
 		Config:    cfg,
 		Log:       log,
@@ -107,6 +115,7 @@ func Build(cfg *config.Config) (*Deps, error) {
 		Tracer:    tracer,
 		Approvals: gate,
 		MCP:       mcpGW,
+		Memory:    memReader,
 	}, nil
 }
 

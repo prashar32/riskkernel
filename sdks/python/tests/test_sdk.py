@@ -39,6 +39,12 @@ class StubHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         p = self.path
+        if p.startswith("/v1/memory/facts"):
+            return self._send(200, [{"namespace": "dev", "key": "db", "value": "sqlite"}])
+        if p.startswith("/v1/memory/entry"):
+            return self._send(200, {"name": "style.md", "title": "Style", "content": "use tabs"})
+        if p.startswith("/v1/memory"):
+            return self._send(200, [{"name": "style.md", "title": "Style", "format": "markdown"}])
         if p.startswith("/v1/approvals/"):
             STATE.approval_polls += 1
             status = "approved" if STATE.approval_polls >= 2 else "pending"
@@ -72,6 +78,12 @@ class StubHandler(BaseHTTPRequestHandler):
             return self._send(201, {"id": "ap-1", "status": "pending"})
         if p == "/v1/runs/run-1/approve":
             return self._send(200, {"id": "run-1", "status": "running"})
+        return self._send(404, {"code": "not_found", "message": "no"})
+
+    def do_PUT(self):
+        if self.path == "/v1/memory/facts":
+            self._read()
+            return self._send(201, {"namespace": "dev", "key": "db", "value": "sqlite"})
         return self._send(404, {"code": "not_found", "message": "no"})
 
 
@@ -140,6 +152,17 @@ class SDKTest(unittest.TestCase):
         with self.rt.governed_run(name="t") as run:
             out = run.cancel("done")
             self.assertEqual(out["status"], "cancelled")
+
+    def test_memory(self):
+        c = self.rt.client
+        entries = c.list_memory(namespace="dev")
+        self.assertEqual(entries[0]["title"], "Style")
+        entry = c.read_memory("style.md", namespace="dev")
+        self.assertEqual(entry["content"], "use tabs")
+        facts = c.list_facts(namespace="dev")
+        self.assertEqual(facts[0]["key"], "db")
+        out = c.put_fact("dev", "db", "sqlite")
+        self.assertEqual(out["value"], "sqlite")
 
     def test_proxy_config(self):
         with self.rt.governed_run(name="t") as run:

@@ -293,6 +293,33 @@ func TestApprovals(t *testing.T) {
 	}
 }
 
+func TestFacts(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	if _, err := s.GetFact(ctx, "ns", "k"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+	if err := s.PutFact(ctx, Fact{Namespace: "ns", Key: "lang", Value: "go", UpdatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	// Upsert overwrites.
+	if err := s.PutFact(ctx, Fact{Namespace: "ns", Key: "lang", Value: "go+python", RunID: "r1", UpdatedAt: now}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := s.GetFact(ctx, "ns", "lang")
+	if err != nil || got.Value != "go+python" || got.RunID != "r1" {
+		t.Fatalf("GetFact = %+v, %v", got, err)
+	}
+	_ = s.PutFact(ctx, Fact{Namespace: "ns", Key: "db", Value: "sqlite", UpdatedAt: now})
+	_ = s.PutFact(ctx, Fact{Namespace: "other", Key: "x", Value: "y", UpdatedAt: now})
+	facts, err := s.ListFacts(ctx, "ns")
+	if err != nil || len(facts) != 2 {
+		t.Fatalf("ListFacts(ns) = %v, %v; want 2", facts, err)
+	}
+}
+
 func mustRun(t *testing.T, s *SQLite, id string, now time.Time) {
 	t.Helper()
 	if err := s.UpsertRun(context.Background(), RunRecord{

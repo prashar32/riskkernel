@@ -15,6 +15,7 @@ import (
 	"github.com/prashar32/riskkernel/internal/approval"
 	"github.com/prashar32/riskkernel/internal/config"
 	"github.com/prashar32/riskkernel/internal/governor"
+	"github.com/prashar32/riskkernel/internal/memory"
 	"github.com/prashar32/riskkernel/internal/runs"
 	"github.com/prashar32/riskkernel/internal/storage"
 )
@@ -29,7 +30,7 @@ func newTestServer(t *testing.T, token string) (*Server, *runs.Manager, *approva
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	mgr := runs.NewManager(governor.Budget{Tokens: 100000}).WithStore(store, log)
 	gate := approval.NewGate(store, approval.Policy{DefaultSafe: true}, nil, log)
-	srv := New(&config.Config{APIToken: token}, nil, mgr, gate, nil, log)
+	srv := New(&config.Config{APIToken: token}, nil, mgr, gate, nil, memory.NewReader(t.TempDir()), log)
 	return srv, mgr, gate
 }
 

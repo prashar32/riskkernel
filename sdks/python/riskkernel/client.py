@@ -12,6 +12,7 @@ import json
 import urllib.error
 import urllib.request
 from typing import Any, Optional
+from urllib.parse import quote as _q
 
 from .errors import APIError, BudgetExceeded
 
@@ -121,4 +122,32 @@ class RiskKernel:
             "approvalId": approval_id,
             "decision": "approve" if approve else "deny",
             "reason": reason, "decidedBy": decided_by,
+        })
+
+    # --- git-native memory ---
+
+    def list_memory(self, namespace: str = "", query: str = "") -> list:
+        """List (or keyword-search) the user-owned markdown/YAML memory entries."""
+        q = []
+        if namespace:
+            q.append("namespace=" + _q(namespace))
+        if query:
+            q.append("q=" + _q(query))
+        path = "/v1/memory" + ("?" + "&".join(q) if q else "")
+        return self._request("GET", path)
+
+    def read_memory(self, name: str, namespace: str = "") -> dict:
+        """Read one memory file's content + metadata."""
+        path = f"/v1/memory/entry?name={_q(name)}"
+        if namespace:
+            path += "&namespace=" + _q(namespace)
+        return self._request("GET", path)
+
+    def list_facts(self, namespace: str = "") -> list:
+        path = "/v1/memory/facts" + ("?namespace=" + _q(namespace) if namespace else "")
+        return self._request("GET", path)
+
+    def put_fact(self, namespace: str, key: str, value: str, run_id: str = "") -> dict:
+        return self._request("PUT", "/v1/memory/facts", {
+            "namespace": namespace, "key": key, "value": value, "runId": run_id,
         })
