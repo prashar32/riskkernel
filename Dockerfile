@@ -39,5 +39,9 @@ EXPOSE 7070
 VOLUME ["/data"]
 USER 65532:65532
 
+# distroless has no shell/curl, so the binary probes itself (GET /healthz).
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD ["/usr/local/bin/riskkernel", "healthcheck"]
+
 ENTRYPOINT ["/usr/local/bin/riskkernel"]
 CMD ["serve"]
