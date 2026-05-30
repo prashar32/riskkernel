@@ -18,6 +18,7 @@ import (
 	"github.com/prashar32/riskkernel/internal/gateway"
 	"github.com/prashar32/riskkernel/internal/httpx"
 	"github.com/prashar32/riskkernel/internal/mcp"
+	"github.com/prashar32/riskkernel/internal/memory"
 	"github.com/prashar32/riskkernel/internal/runs"
 	"github.com/prashar32/riskkernel/internal/storage"
 	"github.com/prashar32/riskkernel/internal/version"
@@ -30,13 +31,14 @@ type Server struct {
 	runs      *runs.Manager
 	approvals *approval.Gate
 	mcp       *mcp.Gateway
+	memory    *memory.Reader
 	log       *slog.Logger
 }
 
 // New constructs a Server.
 func New(cfg *config.Config, gw *gateway.Gateway, mgr *runs.Manager, gate *approval.Gate,
-	mcpGW *mcp.Gateway, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, gateway: gw, runs: mgr, approvals: gate, mcp: mcpGW, log: log}
+	mcpGW *mcp.Gateway, mem *memory.Reader, log *slog.Logger) *Server {
+	return &Server{cfg: cfg, gateway: gw, runs: mgr, approvals: gate, mcp: mcpGW, memory: mem, log: log}
 }
 
 // Handler returns the root HTTP handler with all routes mounted.
@@ -76,6 +78,15 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("GET /v1/approvals/{id}", s.requireAuth(s.handleGetApproval))
 		// Local admin web page (Surface: human-in-the-loop, pull channel).
 		mux.HandleFunc("GET /admin/approvals", s.requireAuth(s.handleAdminApprovalsPage))
+	}
+	// Git-native memory layer.
+	if s.memory != nil {
+		mux.HandleFunc("GET /v1/memory", s.requireAuth(s.handleListMemory))
+		mux.HandleFunc("GET /v1/memory/entry", s.requireAuth(s.handleReadMemory))
+	}
+	if s.runs != nil {
+		mux.HandleFunc("GET /v1/memory/facts", s.requireAuth(s.handleListFacts))
+		mux.HandleFunc("PUT /v1/memory/facts", s.requireAuth(s.handlePutFact))
 	}
 
 	return s.recoverer(mux)

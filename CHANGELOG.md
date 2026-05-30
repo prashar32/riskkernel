@@ -79,5 +79,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   `tool_calls` row. Enabled by `RISKKERNEL_MCP_UPSTREAM`; allowlist/read-only via
   `RISKKERNEL_MCP_ALLOWLIST` / `RISKKERNEL_MCP_READONLY`. Point your MCP client at
   the gateway and governance is invisible to allowed, approved calls.
+- **Git-native memory layer** — a user-owned directory of markdown/YAML/text the
+  agent reads (`RISKKERNEL_MEMORY_DIR`, default `./memory`). Deterministic
+  retrieval: list, read, keyword search; markdown frontmatter (`title`/
+  `description`) surfaced; reads are path-traversal-safe. **No embedding index /
+  vector DB** (off by default, not implemented in v0.1). Episodic facts (small
+  key/value) persist in SQLite (migration `00004`). `GET /v1/memory`,
+  `GET /v1/memory/entry`, `GET`/`PUT /v1/memory/facts`; `riskkernel memory
+  list/show`; Python SDK `list_memory`/`read_memory`/`list_facts`/`put_fact`.
 
 [Unreleased]: https://github.com/prashar32/riskkernel/commits/main

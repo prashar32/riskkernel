@@ -46,6 +46,8 @@ func main() {
 		err = runAudit(args)
 	case "approvals":
 		err = runApprovals(args)
+	case "memory":
+		err = runMemory(args)
 	case "version", "--version", "-v":
 		fmt.Println("riskkernel", version.String())
 	case "help", "--help", "-h":
@@ -74,6 +76,8 @@ Usage:
   riskkernel approvals list     List pending human-in-the-loop approvals
   riskkernel approvals approve <id> [--reason ...]  Approve a pending request
   riskkernel approvals deny <id> [--reason ...]     Deny a pending request
+  riskkernel memory list [namespace]                List git-native memory entries
+  riskkernel memory show <name> [namespace]         Print a memory file
   riskkernel version            Print build identity
   riskkernel help               Show this help
 
@@ -117,7 +121,7 @@ func runServe(_ []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	srv := httpapi.New(cfg, deps.Gateway, deps.Runs, deps.Approvals, deps.MCP, deps.Log)
+	srv := httpapi.New(cfg, deps.Gateway, deps.Runs, deps.Approvals, deps.MCP, deps.Memory, deps.Log)
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	return srv.Serve(ctx, addr)
 }

@@ -147,6 +147,13 @@ type Store interface {
 	// AppendToolCall records a tool invocation.
 	AppendToolCall(ctx context.Context, t ToolCallRecord) error
 
+	// PutFact inserts or updates an episodic memory fact by (namespace, key).
+	PutFact(ctx context.Context, f Fact) error
+	// GetFact returns a fact, or ErrNotFound.
+	GetFact(ctx context.Context, namespace, key string) (Fact, error)
+	// ListFacts returns all facts in a namespace.
+	ListFacts(ctx context.Context, namespace string) ([]Fact, error)
+
 	// CreateApproval persists a new (pending) approval request.
 	CreateApproval(ctx context.Context, a ApprovalRecord) error
 	// GetApproval returns an approval by id, or ErrNotFound.
