@@ -1,0 +1,32 @@
+name: Claude (@claude)
+
+# On-demand Claude — comment "@claude ..." on a PR (or an inline review comment)
+# to ask for a re-review or a change. Locked to the maintainer: the job only runs
+# when the commenter is prashar32, so nobody else can invoke Claude on this repo.
+# Auth is the Claude Max subscription (CLAUDE_CODE_OAUTH_TOKEN); no API billing.
+on:
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  claude:
+    # Only the maintainer can trigger Claude, and only via the @claude phrase.
+    if: >
+      github.event.sender.login == 'prashar32' &&
+      contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          trigger_phrase: "@claude"

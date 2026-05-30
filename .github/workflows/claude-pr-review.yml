@@ -1,0 +1,47 @@
+name: Claude PR Review
+
+# Automatic reviewer-POV review when a PR to main is opened. Auth is the Claude
+# Max subscription via CLAUDE_CODE_OAUTH_TOKEN (no API billing, no per-call cost) —
+# generate it locally once with `claude setup-token` and add it as a repo secret.
+# Re-review on demand by commenting "@claude" (see claude.yml). Add `synchronize`
+# below if you also want a fresh review on every push.
+on:
+  pull_request:
+    types: [opened, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Review this pull request as a senior reviewer for RiskKernel — a
+            deterministic, self-hosted reliability runtime for AI agents. Post
+            concise, actionable inline comments on the specific lines; if the PR
+            is clean, say so briefly. Prioritise:
+
+            1. Correctness & bugs — concurrency, error handling, edge cases.
+            2. Security — path/SSRF/injection, integer overflow, unsafe file or
+               exec handling, and secret handling. No data may leave the host
+               except calls to the user-configured provider, OTLP, and approval
+               webhook endpoints (see SECURITY.md).
+            3. The core invariant — ALL enforcement (token/dollar/loop/time
+               budgets, kill switch, approval gating, routing, retries,
+               checkpoint/resume) stays deterministic Go and is NEVER delegated to
+               an LLM.
+            4. Backwards compatibility — api/v1 request/response shapes, the config
+               schema, and SQLite migrations (forward-only; never edit a shipped
+               migration).
+            5. Tests — safety-critical paths (governor, approval gate, checkpoint
+               manager) need exhaustive coverage.
+            6. Surface any new CodeQL-style risks (e.g. tainted input reaching a
+               file path or a command) before they land.
