@@ -1,0 +1,534 @@
+openapi: 3.1.0
+info:
+  title: RiskKernel API
+  version: "1.0.0"
+  description: |
+    The RiskKernel public contract — the versioned, stable surface that SDKs and
+    the future company-builder (Product 2) consume. Everything under the Go
+    `internal/` tree is private; only this `/v1` API, the config schema, the OTel
+    GenAI attribute set, the SDKs, and the `pkg/plugin/` interfaces are public.
+
+    Stability is governed by COMPATIBILITY.md. New optional fields may be added
+    within a major version; existing fields keep their meaning.
+
+    Authentication (v0.1): single-tenant. One bearer token, supplied via the
+    `Authorization: Bearer <token>` header, configured out-of-band. There is no
+    multi-user auth/RBAC/SSO in v0.1.
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+servers:
+  - url: http://localhost:7070
+    description: Local self-hosted daemon (default port 7070)
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: runs
+    description: Governed runs — the unit RiskKernel supervises end to end.
+  - name: approvals
+    description: Human-in-the-loop gates on side-effecting actions.
+  - name: checkpoints
+    description: Crash-resumable state snapshots.
+  - name: policies
+    description: Registered policy bundles (budgets, allowlists, approval rules).
+
+paths:
+  /v1/runs:
+    post:
+      tags: [runs]
+      operationId: createRun
+      summary: Start a governed run
+      description: |
+        Begins a new governed run under an enforced budget. The run is the unit of
+        governance: every model call, tool call, token, and dollar is attributed to
+        it, and the deterministic governor halts it the instant any budget is
+        exceeded.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRunRequest'
+      responses:
+        '201':
+          description: Run created and accepted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          description: Budget or policy reference invalid.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/runs/{id}:
+    get:
+      tags: [runs]
+      operationId: getRun
+      summary: Get run status and current step
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      responses:
+        '200':
+          description: Current run state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/runs/{id}/approve:
+    post:
+      tags: [approvals]
+      operationId: resolveApproval
+      summary: Resolve a human-in-the-loop approval gate
+      description: |
+        Approves or denies a pending side-effecting action that the run paused on.
+        A denial halts the gated step; the run proceeds along its denial path (or
+        halts) per policy. This is the framework-agnostic HITL resolution endpoint.
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApprovalDecision'
+      responses:
+        '200':
+          description: Decision recorded; run resumed or halted accordingly.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: No approval is currently pending for this run, or it was already resolved.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/runs/{id}/cancel:
+    post:
+      tags: [runs]
+      operationId: cancelRun
+      summary: Kill switch — cancel a run
+      description: |
+        Hard kill switch. Cancels the run's context, halts any in-flight model or
+        tool call at the next safe point, and persists final state. Idempotent: a
+        run already in a terminal state returns its current state unchanged.
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  description: Optional human-readable reason recorded with the cancellation.
+      responses:
+        '200':
+          description: Run cancelled (or already terminal).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Run'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/checkpoints/{run_id}:
+    get:
+      tags: [checkpoints]
+      operationId: getCheckpoint
+      summary: Fetch the latest checkpoint for a run
+      description: |
+        Returns the most recent crash-resumable checkpoint for the run — the state
+        from which `riskkernel runs resume <id>` would continue after a crash.
+      parameters:
+        - name: run_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Latest checkpoint.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Checkpoint'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          description: Run exists but has no checkpoint yet, or run not found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /v1/policies:
+    post:
+      tags: [policies]
+      operationId: registerPolicy
+      summary: Register a policy bundle
+      description: |
+        Registers (or updates, by name) a reusable policy bundle — default budget,
+        tool allowlist, and approval rules — that runs can reference by name instead
+        of inlining. Policy bundles are deterministic config; no LLM is ever
+        consulted to evaluate them.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Policy'
+      responses:
+        '200':
+          description: Policy registered or updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Single-tenant bearer token (v0.1).
+
+  parameters:
+    RunId:
+      name: id
+      in: path
+      required: true
+      description: The run's UUID.
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    BadRequest:
+      description: Malformed request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Missing or invalid bearer token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    CreateRunRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Human-readable label for the run.
+        budget:
+          $ref: '#/components/schemas/Budget'
+        policyRef:
+          type: string
+          description: |
+            Name of a previously registered policy bundle to apply. An inline
+            `budget` overrides the bundle's default budget field-by-field.
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Opaque user key/value metadata attached to the run.
+      description: |
+        At least one of `budget` or `policyRef` should be supplied; a run with
+        neither inherits the daemon's configured default budget.
+
+    Budget:
+      type: object
+      additionalProperties: false
+      description: |
+        Hard per-run limits. Any field omitted is treated as unlimited for that
+        dimension. The governor enforces all supplied limits independently; the
+        first to trip halts the run.
+      properties:
+        tokens:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Maximum total tokens (prompt + completion) across the run.
+        dollars:
+          type: number
+          format: double
+          minimum: 0
+          description: Maximum cost in USD across the run, computed from the cost ledger.
+        loops:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Maximum number of agent loop iterations (steps).
+        seconds:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Maximum wall-clock duration of the run, in seconds.
+
+    Run:
+      type: object
+      required: [id, status, createdAt, usage]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          $ref: '#/components/schemas/RunStatus'
+        budget:
+          $ref: '#/components/schemas/Budget'
+        usage:
+          $ref: '#/components/schemas/Usage'
+        currentStep:
+          $ref: '#/components/schemas/Step'
+        haltReason:
+          type: string
+          description: |
+            Set when the run is in a terminal state due to enforcement. One of the
+            machine-readable reasons in HaltReason, or empty for a normal completion.
+        pendingApproval:
+          $ref: '#/components/schemas/ApprovalRequest'
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    RunStatus:
+      type: string
+      description: Lifecycle state of a run.
+      enum:
+        - pending          # accepted, not yet started
+        - running          # actively executing
+        - waiting_approval # paused on a human-in-the-loop gate
+        - completed        # finished normally
+        - halted           # stopped by the governor (budget/limit hit)
+        - cancelled        # stopped by the kill switch
+        - failed           # stopped by an unrecoverable error
+
+    HaltReason:
+      type: string
+      description: Machine-readable reason a run entered a non-normal terminal state.
+      enum:
+        - token_budget_exceeded
+        - dollar_budget_exceeded
+        - loop_budget_exceeded
+        - time_budget_exceeded
+        - cancelled
+        - approval_denied
+        - provider_error
+
+    Usage:
+      type: object
+      required: [tokens, dollars, loops, elapsedSeconds]
+      description: Running totals consumed by the run, maintained by the cost ledger.
+      properties:
+        tokens:
+          type: integer
+          format: int64
+        promptTokens:
+          type: integer
+          format: int64
+        completionTokens:
+          type: integer
+          format: int64
+        dollars:
+          type: number
+          format: double
+        loops:
+          type: integer
+          format: int32
+        elapsedSeconds:
+          type: integer
+          format: int32
+
+    Step:
+      type: object
+      required: [index, status]
+      description: A single iteration of the governed run.
+      properties:
+        index:
+          type: integer
+          format: int32
+          description: Zero-based loop iteration number.
+        status:
+          type: string
+          enum: [running, completed, halted, waiting_approval, failed]
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+        usage:
+          $ref: '#/components/schemas/Usage'
+
+    ApprovalRequest:
+      type: object
+      required: [id, tool, createdAt]
+      description: A side-effecting action paused awaiting human approval.
+      properties:
+        id:
+          type: string
+          format: uuid
+        stepIndex:
+          type: integer
+          format: int32
+        tool:
+          type: string
+          description: The tool/action requiring approval (e.g. "mcp://shell").
+        sideEffect:
+          type: string
+          description: Classified side effect (e.g. "write", "network", "spend").
+        arguments:
+          type: object
+          additionalProperties: true
+          description: The proposed call arguments, for the human to review.
+        createdAt:
+          type: string
+          format: date-time
+
+    ApprovalDecision:
+      type: object
+      required: [decision]
+      additionalProperties: false
+      properties:
+        approvalId:
+          type: string
+          format: uuid
+          description: |
+            The specific pending approval to resolve. If omitted, resolves the run's
+            single currently-pending approval (409 if there is not exactly one).
+        decision:
+          type: string
+          enum: [approve, deny]
+        reason:
+          type: string
+          description: Optional human note recorded with the decision (audit trail).
+        decidedBy:
+          type: string
+          description: Optional identifier of the approver.
+
+    Checkpoint:
+      type: object
+      required: [runId, stepIndex, createdAt]
+      description: A crash-resumable snapshot of run state.
+      properties:
+        runId:
+          type: string
+          format: uuid
+        stepIndex:
+          type: integer
+          format: int32
+          description: The step index this checkpoint was taken after.
+        usage:
+          $ref: '#/components/schemas/Usage'
+        payload:
+          type: object
+          additionalProperties: true
+          description: |
+            Opaque, user-supplied step state required to resume (e.g. conversation
+            messages, scratch state). RiskKernel persists and returns it verbatim.
+        createdAt:
+          type: string
+          format: date-time
+
+    Policy:
+      type: object
+      required: [name]
+      additionalProperties: false
+      description: |
+        A reusable policy bundle. Mirrors the AgentProfile policy fields in the
+        config schema so the future company-builder can register profiles here.
+      properties:
+        name:
+          type: string
+          description: Unique name; re-registering the same name updates the bundle.
+        budget:
+          $ref: '#/components/schemas/Budget'
+        toolAllowlist:
+          type: array
+          items:
+            type: string
+          description: Tools the run may call (e.g. "mcp://github", "mcp://filesystem").
+        approvalPolicy:
+          $ref: '#/components/schemas/ApprovalPolicy'
+
+    ApprovalPolicy:
+      type: object
+      additionalProperties: false
+      description: Deterministic rules for which actions require human approval.
+      properties:
+        requireFor:
+          type: array
+          description: |
+            A match list. An action requires approval if it matches ANY rule. Rules
+            match by exact tool, or by side-effect glob (e.g. "*write*").
+          items:
+            type: object
+            additionalProperties: false
+            properties:
+              tool:
+                type: string
+              sideEffect:
+                type: string
+
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          description: Stable machine-readable error code.
+        message:
+          type: string
+          description: Human-readable explanation.
+        details:
+          type: object
+          additionalProperties: true

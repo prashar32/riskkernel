@@ -1,0 +1,38 @@
+# Binaries
+/riskkernel
+/rk
+/dist/
+*.exe
+*.test
+*.out
+
+# Local state — RiskKernel's SQLite store is the file the user owns; never commit it
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+/data/
+
+# Secrets — keys come from env/.env/OS-keyring, never the repo
+.env
+.env.*
+!.env.example
+
+# Go
+/vendor/
+coverage.txt
+coverage.html
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Python SDK build artifacts
+sdks/python/build/
+sdks/python/dist/
+sdks/python/*.egg-info/
+__pycache__/
+.venv/
