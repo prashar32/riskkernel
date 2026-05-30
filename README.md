@@ -92,6 +92,17 @@ every run in your own backend: [`examples/otel`](examples/otel).
 - **Near-zero adoption friction.** Every decision is judged by *"how few changes must an existing user make?"* One env var is the gold standard.
 - **Backwards compatibility is sacred.** Self-hosted users can't be force-migrated. See [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
+## Contributing
+
+Contributions are welcome. Start with [`ARCHITECTURE.md`](ARCHITECTURE.md) for a
+map of the codebase (and a "where do I code?" table), then
+[`CONTRIBUTING.md`](CONTRIBUTING.md) for dev setup and the PR flow. We use GitHub
+Flow — fork, branch off `main`, open a PR; CI (`build & test` + `CodeQL`) and a
+maintainer review gate every merge.
+
+Good places to start: issues tagged [`good first issue`](https://github.com/prashar32/riskkernel/labels/good%20first%20issue).
+Be excellent to each other — see the [Code of Conduct](CODE_OF_CONDUCT.md).
+
 ## License
 
 [Apache-2.0](LICENSE). The runtime stays permissive, forever.
