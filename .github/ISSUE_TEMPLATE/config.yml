@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/prashar32/riskkernel/security/policy
+    about: Please report vulnerabilities privately — do not open a public issue. See SECURITY.md.
+  - name: Question / discussion
+    url: https://github.com/prashar32/riskkernel/discussions
+    about: For usage questions and ideas, start a discussion.

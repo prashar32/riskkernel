@@ -7,6 +7,7 @@
 Deterministic cost / loop / time budgets · full observability · crash-resumable runs · human-approval gates · a memory you own.
 Self-hosted. Your keys. No telemetry. Point it at your existing agents — one env var.
 
+[![CI](https://github.com/prashar32/riskkernel/actions/workflows/ci.yml/badge.svg)](https://github.com/prashar32/riskkernel/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-pre--v0.1-orange.svg)](CHANGELOG.md)
 

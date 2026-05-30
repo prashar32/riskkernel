@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an enhancement to RiskKernel.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        RiskKernel is a deterministic reliability runtime. Features that put an LLM
+        in the enforcement path, or that duplicate gateways/observability tools
+        rather than interoperate, are out of scope — see CONTRIBUTING.md.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: The concrete reliability/governance pain you're hitting.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What you'd like RiskKernel to do.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches, including existing tools you'd interoperate with.

@@ -1,0 +1,54 @@
+name: Bug report
+description: Something in RiskKernel isn't behaving as documented.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Please do NOT include secrets (API keys, tokens)
+        or private data in logs you paste.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps. Include the config/budget and the request if relevant.
+      placeholder: |
+        1. riskkernel serve with ...
+        2. send request ...
+        3. observe ...
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: RiskKernel version
+      description: Output of `riskkernel version`.
+    validations:
+      required: true
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface?
+      options:
+        - Proxy (OpenAI/Anthropic-compatible)
+        - Governor / budgets
+        - Storage / cost ledger
+        - Crash-resume / checkpoints
+        - OTel export
+        - CLI
+        - Other / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Redact secrets first.
+      render: text
