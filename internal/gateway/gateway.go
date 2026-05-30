@@ -217,8 +217,8 @@ func (g *Gateway) resolveRun(httpReq *http.Request) *runs.Run {
 }
 
 // routeModel maps a model id to a provider name by prefix. An empty result routes
-// to the registry's default provider. v0.1 implements Anthropic natively; OpenAI
-// is a stub (front the long tail with LiteLLM as an upstream forwarder).
+// to the registry's default provider. Anthropic and OpenAI are implemented
+// natively; front the long tail with LiteLLM as an upstream forwarder.
 func routeModel(model string) string {
 	m := strings.ToLower(model)
 	switch {
