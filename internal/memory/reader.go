@@ -163,9 +163,20 @@ func (r *Reader) resolveFile(namespace, name string) (string, error) {
 	return r.safeJoin(filepath.Join(namespace, name))
 }
 
-// safeJoin joins rel under the root and guarantees the result stays within it.
+// safeJoin joins a user-supplied relative path under the root and guarantees the
+// result cannot escape it. The cleaned path is validated with filepath.IsLocal —
+// which rejects absolute paths, "..", and anything that would escape the base
+// (and which static analysis recognizes as a path-traversal sanitizer) — backed
+// by a prefix check as defense in depth.
 func (r *Reader) safeJoin(rel string) (string, error) {
-	joined := filepath.Clean(filepath.Join(r.root, rel))
+	clean := filepath.Clean(rel)
+	if clean == "." { // the root itself (e.g. an empty namespace)
+		return r.root, nil
+	}
+	if !filepath.IsLocal(clean) {
+		return "", ErrUnsafePath
+	}
+	joined := filepath.Join(r.root, clean)
 	if joined != r.root && !strings.HasPrefix(joined, r.root+string(os.PathSeparator)) {
 		return "", ErrUnsafePath
 	}
