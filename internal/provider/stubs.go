@@ -6,15 +6,7 @@ import "context"
 // routing and config can reference them, but Chat returns ErrNotImplemented until
 // each is built out. For the long tail of providers, the documented path is to
 // front RiskKernel with LiteLLM rather than reimplement 100+ vendors here.
-
-// OpenAI is a stub. Native implementation is planned post-v0.1.
-type OpenAI struct{ apiKey string }
-
-func NewOpenAI(apiKey string) *OpenAI { return &OpenAI{apiKey: apiKey} }
-func (o *OpenAI) Name() string        { return "openai" }
-func (o *OpenAI) Chat(context.Context, Request) (*Response, error) {
-	return nil, ErrNotImplemented
-}
+// (Anthropic and OpenAI are implemented natively — see anthropic.go, openai.go.)
 
 // Bedrock is a stub. Native implementation is planned post-v0.1.
 type Bedrock struct{}
