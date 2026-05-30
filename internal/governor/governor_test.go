@@ -213,6 +213,24 @@ func TestHaltErrorCarriesUsage(t *testing.T) {
 
 // TestConcurrentCancel exercises the kill switch firing from another goroutine
 // while guard methods run. Run with -race.
+func TestWithRestoredUsage(t *testing.T) {
+	// A run reconstructed with prior usage keeps enforcing against the budget it
+	// already spent (crash-resume).
+	r := New(context.Background(), Budget{Tokens: 1000},
+		WithRestoredUsage(Usage{PromptTokens: 600, CompletionTokens: 300, Loops: 3}))
+	defer r.Close()
+
+	u, _ := r.Status()
+	if u.Tokens() != 900 || u.Loops != 3 {
+		t.Fatalf("restored usage = %+v", u)
+	}
+	if err := r.CanProceed(); err != nil {
+		t.Fatalf("CanProceed at 900/1000: %v", err)
+	}
+	// 200 more crosses the restored budget.
+	asHalt(t, r.RecordUsage(200, 0, 0), HaltTokenBudget)
+}
+
 func TestConcurrentCancel(t *testing.T) {
 	r := New(context.Background(), Budget{Tokens: 1_000_000_000})
 	defer r.Close()

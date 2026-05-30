@@ -67,6 +67,7 @@ Usage:
   riskkernel serve              Run the governance daemon (default :7070)
   riskkernel chat "<prompt>"    One-shot model call (proves the provider path)
   riskkernel runs list          List persisted governed runs
+  riskkernel runs resume <id>   Show a run's resumable state after a crash
   riskkernel audit export <id>  Export a run's cost ledger as JSON
   riskkernel version            Print build identity
   riskkernel help               Show this help
@@ -97,6 +98,14 @@ func runServe(_ []string) error {
 	}
 	if cfg.AnthropicAPIKey == "" {
 		deps.Log.Warn("ANTHROPIC_API_KEY is not set — model calls will fail until a key is provided")
+	}
+
+	// Crash-resume: reload any runs that were mid-flight before a restart so they
+	// keep enforcing against the budget they already spent.
+	if n, err := deps.Runs.Reload(context.Background()); err != nil {
+		return fmt.Errorf("reloading runs: %w", err)
+	} else if n > 0 {
+		deps.Log.Info("resumed runs from store", "count", n)
 	}
 
 	// SIGINT/SIGTERM cancel the root context, which drains the server cleanly.

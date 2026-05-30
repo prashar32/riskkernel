@@ -12,12 +12,26 @@ import (
 	"github.com/prashar32/riskkernel/internal/storage"
 )
 
-// runRuns implements `riskkernel runs list` — read-only inspection of persisted
-// runs from the local state store.
+// runRuns implements `riskkernel runs <list|resume>`.
 func runRuns(args []string) error {
-	if len(args) == 0 || args[0] != "list" {
-		return fmt.Errorf("usage: riskkernel runs list")
+	if len(args) == 0 {
+		return fmt.Errorf("usage: riskkernel runs <list|resume <id>>")
 	}
+	switch args[0] {
+	case "list":
+		return runsList()
+	case "resume":
+		if len(args) < 2 {
+			return fmt.Errorf("usage: riskkernel runs resume <id>")
+		}
+		return runsResume(args[1])
+	default:
+		return fmt.Errorf("unknown runs subcommand %q (want list|resume)", args[0])
+	}
+}
+
+// runsList prints persisted runs from the local state store.
+func runsList() error {
 	store, err := openStoreForCLI()
 	if err != nil {
 		return err
@@ -42,6 +56,100 @@ func runRuns(args []string) error {
 			dash(r.HaltReason), r.CreatedAt.Format("2006-01-02 15:04:05"))
 	}
 	return tw.Flush()
+}
+
+// runsResume implements `riskkernel runs resume <id>` — report a run's resumable
+// state. A running daemon auto-reloads non-terminal runs on startup, so a
+// SIGKILL'd run keeps enforcing against its spent budget as soon as the daemon is
+// back; this command confirms what state it will continue from. Terminal runs are
+// not resumable.
+func runsResume(runID string) error {
+	store, err := openStoreForCLI()
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	run, err := store.GetRun(ctx, runID)
+	if err != nil {
+		return fmt.Errorf("run %s: %w", runID, err)
+	}
+
+	switch run.Status {
+	case "completed", "halted", "cancelled", "failed":
+		fmt.Printf("run %s is %s and cannot be resumed (halt: %s)\n", runID, run.Status, dash(run.HaltReason))
+		return nil
+	}
+
+	usedTokens := run.UsagePromptTokens + run.UsageCompletionTokens
+	fmt.Printf("run %s (%s) is resumable\n", runID, dash(run.Name))
+	fmt.Printf("  spent so far : %d tokens, $%.4f, %d loops\n", usedTokens, run.UsageDollars, run.UsageLoops)
+	fmt.Printf("  budget       : %s\n", budgetSummary(run))
+	fmt.Printf("  remaining    : %s\n", remainingSummary(run, usedTokens))
+
+	if cp, err := store.LatestCheckpoint(ctx, runID); err == nil {
+		fmt.Printf("  last step    : %d (checkpoint at %s)\n", cp.StepIndex, cp.CreatedAt.Format("2006-01-02 15:04:05"))
+		if len(cp.Payload) > 0 {
+			b, _ := json.Marshal(cp.Payload)
+			fmt.Printf("  payload      : %s\n", string(b))
+		}
+	}
+	fmt.Println("\nStart the daemon (riskkernel serve) and reuse this run id; enforcement continues from the state above.")
+	return nil
+}
+
+func budgetSummary(r storage.RunRecord) string {
+	return fmt.Sprintf("%s tokens, %s, %s loops, %s",
+		limitInt(r.BudgetTokens), limitDollars(r.BudgetDollars),
+		limitInt(int64(r.BudgetLoops)), limitSeconds(r.BudgetSeconds))
+}
+
+func remainingSummary(r storage.RunRecord, usedTokens int64) string {
+	parts := ""
+	if r.BudgetTokens > 0 {
+		parts += fmt.Sprintf("%d tokens", maxInt64(0, r.BudgetTokens-usedTokens))
+	} else {
+		parts += "unlimited tokens"
+	}
+	if r.BudgetDollars > 0 {
+		parts += fmt.Sprintf(", $%.4f", maxFloat(0, r.BudgetDollars-r.UsageDollars))
+	}
+	if r.BudgetLoops > 0 {
+		parts += fmt.Sprintf(", %d loops", maxInt64(0, int64(r.BudgetLoops)-int64(r.UsageLoops)))
+	}
+	return parts
+}
+
+func limitInt(v int64) string {
+	if v <= 0 {
+		return "unlimited"
+	}
+	return fmt.Sprintf("%d", v)
+}
+func limitDollars(v float64) string {
+	if v <= 0 {
+		return "unlimited $"
+	}
+	return fmt.Sprintf("$%.2f", v)
+}
+func limitSeconds(v int32) string {
+	if v <= 0 {
+		return "unlimited time"
+	}
+	return fmt.Sprintf("%ds", v)
+}
+func maxInt64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+func maxFloat(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // runAudit implements `riskkernel audit export <run-id>` — emit the auditable

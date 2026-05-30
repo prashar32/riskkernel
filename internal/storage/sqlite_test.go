@@ -196,6 +196,63 @@ func TestDowngradeProtection(t *testing.T) {
 	}
 }
 
+func TestCheckpoints(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	mustRun(t, s, "run-cp", now)
+
+	if _, err := s.LatestCheckpoint(ctx, "run-cp"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound for no checkpoints, got %v", err)
+	}
+
+	c1 := CheckpointRecord{RunID: "run-cp", StepIndex: 1, UsagePromptTokens: 100, UsageLoops: 1, CreatedAt: now}
+	c2 := CheckpointRecord{RunID: "run-cp", StepIndex: 2, UsagePromptTokens: 250, UsageLoops: 2,
+		Name: "after-tool", Payload: map[string]any{"messages": []any{"a", "b"}}, CreatedAt: now.Add(time.Second)}
+	if err := s.SaveCheckpoint(ctx, c1); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.SaveCheckpoint(ctx, c2); err != nil {
+		t.Fatal(err)
+	}
+
+	latest, err := s.LatestCheckpoint(ctx, "run-cp")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if latest.StepIndex != 2 || latest.Name != "after-tool" || latest.UsagePromptTokens != 250 {
+		t.Fatalf("latest = %+v", latest)
+	}
+	if latest.Payload["messages"] == nil {
+		t.Errorf("payload not round-tripped: %v", latest.Payload)
+	}
+
+	all, err := s.ListCheckpoints(ctx, "run-cp")
+	if err != nil || len(all) != 2 {
+		t.Fatalf("ListCheckpoints = %v, %v", all, err)
+	}
+	if all[0].StepIndex != 1 {
+		t.Errorf("checkpoints not in order: %+v", all)
+	}
+}
+
+func TestListRunsByStatus(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	for _, tc := range []struct{ id, status string }{
+		{"r-run", "running"}, {"r-halt", "halted"}, {"r-run2", "running"},
+	} {
+		if err := s.UpsertRun(ctx, RunRecord{ID: tc.id, Status: tc.status, CreatedAt: now, UpdatedAt: now}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	running, err := s.ListRunsByStatus(ctx, "running")
+	if err != nil || len(running) != 2 {
+		t.Fatalf("running runs = %v, %v; want 2", running, err)
+	}
+}
+
 func mustRun(t *testing.T, s *SQLite, id string, now time.Time) {
 	t.Helper()
 	if err := s.UpsertRun(context.Background(), RunRecord{

@@ -92,6 +92,84 @@ func TestManager_WriteThroughPersistence(t *testing.T) {
 	}
 }
 
+func TestManager_ReloadResumesBudget(t *testing.T) {
+	store, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "resume.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	noop := slog.New(slog.NewTextHandler(noopWriter{}, nil))
+
+	// Process A: a run with a 1000-token budget spends 900.
+	mA := NewManager(governor.Budget{Tokens: 1000}).WithStore(store, noop)
+	rA := mA.Create(CreateOptions{ID: "resume-me", Name: "long-run"})
+	step, _ := rA.BeginStep()
+	if err := rA.RecordCall(Call{StepIndex: step, Provider: "anthropic", Model: "m",
+		PromptTokens: 600, CompletionTokens: 300}); err != nil {
+		t.Fatalf("first call (900 tokens) should be under budget: %v", err)
+	}
+
+	// --- simulate SIGKILL: drop manager A, keep the store ---
+
+	// Process B starts with a DIFFERENT default budget (unlimited). If reload
+	// restored the manager default instead of the run's own budget, the next call
+	// would NOT halt — so this proves the per-run budget is what's restored.
+	mB := NewManager(governor.Budget{}).WithStore(store, noop)
+	n, err := mB.Reload(context.Background())
+	if err != nil || n != 1 {
+		t.Fatalf("Reload = %d, %v; want 1", n, err)
+	}
+	rB, ok := mB.Get("resume-me")
+	if !ok {
+		t.Fatal("run not reloaded")
+	}
+	if v := rB.View(); v.Usage.Tokens() != 900 || v.Usage.Loops != 1 {
+		t.Fatalf("restored usage = %+v", v.Usage)
+	}
+
+	// A further 200-token call crosses the restored 1000 budget → halt.
+	step2, _ := rB.BeginStep()
+	err = rB.RecordCall(Call{StepIndex: step2, Provider: "anthropic", Model: "m",
+		PromptTokens: 200, CompletionTokens: 0})
+	if err == nil {
+		t.Fatal("call after resume should hit the restored token budget")
+	}
+	got, _ := store.GetRun(context.Background(), "resume-me")
+	if got.HaltReason != string(governor.HaltTokenBudget) {
+		t.Fatalf("halt reason = %q", got.HaltReason)
+	}
+}
+
+func TestManager_ReloadSkipsTerminalRuns(t *testing.T) {
+	store, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "term.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	noop := slog.New(slog.NewTextHandler(noopWriter{}, nil))
+
+	mA := NewManager(governor.Budget{}).WithStore(store, noop)
+	running := mA.Create(CreateOptions{ID: "still-running"})
+	_ = running
+	cancelled := mA.Create(CreateOptions{ID: "was-cancelled"})
+	cancelled.Cancel()
+
+	mB := NewManager(governor.Budget{}).WithStore(store, noop)
+	n, err := mB.Reload(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("reloaded %d runs, want 1 (only the running one)", n)
+	}
+	if _, ok := mB.Get("was-cancelled"); ok {
+		t.Error("cancelled run should not be reloaded as live")
+	}
+	if _, ok := mB.Get("still-running"); !ok {
+		t.Error("running run should be reloaded")
+	}
+}
+
 func TestManager_HaltPersistsStatus(t *testing.T) {
 	store, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "halt.db"))
 	if err != nil {

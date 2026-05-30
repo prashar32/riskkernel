@@ -17,6 +17,7 @@ import (
 	"github.com/prashar32/riskkernel/internal/gateway"
 	"github.com/prashar32/riskkernel/internal/httpx"
 	"github.com/prashar32/riskkernel/internal/runs"
+	"github.com/prashar32/riskkernel/internal/storage"
 	"github.com/prashar32/riskkernel/internal/version"
 )
 
@@ -49,7 +50,11 @@ func (s *Server) Handler() http.Handler {
 		s.gateway.Register(mux, s.requireAuth)
 	}
 
-	// Further authenticated /v1 routes (runs API) land in later build steps.
+	// Public /v1 contract routes (authenticated).
+	if s.runs != nil {
+		mux.HandleFunc("GET /v1/checkpoints/{run_id}", s.requireAuth(s.handleGetCheckpoint))
+	}
+	// Further /v1 routes (full runs API) land in later build steps.
 
 	return s.recoverer(mux)
 }
@@ -64,6 +69,46 @@ func (s *Server) handleVersion(w http.ResponseWriter, _ *http.Request) {
 		"commit":  version.Commit,
 		"date":    version.Date,
 	})
+}
+
+// handleGetCheckpoint implements GET /v1/checkpoints/{run_id} — the latest
+// crash-resumable checkpoint for a run, per the api/v1 contract.
+func (s *Server) handleGetCheckpoint(w http.ResponseWriter, r *http.Request) {
+	runID := r.PathValue("run_id")
+	store := s.runs.Store()
+	if store == nil {
+		httpx.WriteError(w, http.StatusServiceUnavailable, "no_store", "no durable store configured")
+		return
+	}
+	cp, err := store.LatestCheckpoint(r.Context(), runID)
+	if err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			httpx.WriteError(w, http.StatusNotFound, "not_found", "no checkpoint for run "+runID)
+			return
+		}
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		return
+	}
+	httpx.WriteJSON(w, http.StatusOK, map[string]any{
+		"runId":     cp.RunID,
+		"stepIndex": cp.StepIndex,
+		"usage": map[string]any{
+			"promptTokens":     cp.UsagePromptTokens,
+			"completionTokens": cp.UsageCompletionTokens,
+			"tokens":           cp.UsagePromptTokens + cp.UsageCompletionTokens,
+			"dollars":          cp.UsageDollars,
+			"loops":            cp.UsageLoops,
+		},
+		"payload":   orEmptyPayload(cp.Payload),
+		"createdAt": cp.CreatedAt,
+	})
+}
+
+func orEmptyPayload(p map[string]any) map[string]any {
+	if p == nil {
+		return map[string]any{}
+	}
+	return p
 }
 
 // Serve runs the HTTP server on the given address until ctx is cancelled, then

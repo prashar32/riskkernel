@@ -12,6 +12,7 @@ package runs
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -287,6 +288,76 @@ func (m *Manager) newRun(rid, name string, budget governor.Budget, meta map[stri
 	}
 }
 
+// Reload restores non-terminal ("running") runs from the store into memory,
+// reconstructing each governor with the usage it had already spent. This is
+// crash-resume: after a SIGKILL and restart, a run keeps enforcing against its
+// accumulated budget instead of starting fresh. Returns the number reloaded.
+func (m *Manager) Reload(ctx context.Context) (int, error) {
+	if m.store == nil {
+		return 0, nil
+	}
+	recs, err := m.store.ListRunsByStatus(ctx, "running")
+	if err != nil {
+		return 0, err
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	n := 0
+	for _, rec := range recs {
+		if _, ok := m.runs[rec.ID]; ok {
+			continue
+		}
+		m.runs[rec.ID] = m.reloadRun(rec)
+		n++
+	}
+	return n, nil
+}
+
+// reloadRun reconstructs a live Run from a persisted record, seeding the governor
+// with the run's prior usage so budget enforcement continues across the restart.
+func (m *Manager) reloadRun(rec storage.RunRecord) *Run {
+	budget := governor.Budget{
+		Tokens: rec.BudgetTokens, Dollars: rec.BudgetDollars,
+		Loops: rec.BudgetLoops, Seconds: rec.BudgetSeconds,
+	}
+	usage := governor.Usage{
+		PromptTokens:     rec.UsagePromptTokens,
+		CompletionTokens: rec.UsageCompletionTokens,
+		Dollars:          rec.UsageDollars,
+		Loops:            rec.UsageLoops,
+	}
+	return &Run{
+		ID:        rec.ID,
+		Name:      rec.Name,
+		Budget:    budget,
+		Metadata:  rec.Metadata,
+		mgr:       m,
+		gov:       governor.New(context.Background(), budget, governor.WithRestoredUsage(usage)),
+		createdAt: rec.CreatedAt,
+		updatedAt: rec.UpdatedAt,
+	}
+}
+
+// Checkpoint records a crash-resumable checkpoint for a run with an opaque
+// payload (used by the SDK's runtime.checkpoint). The usage snapshot is taken
+// from the governor; the payload is persisted verbatim.
+func (m *Manager) Checkpoint(runID, name string, payload map[string]any) error {
+	r, ok := m.Get(runID)
+	if !ok {
+		return fmt.Errorf("run %s not found", runID)
+	}
+	if m.store == nil {
+		return nil
+	}
+	u, _ := r.gov.Status()
+	return m.store.SaveCheckpoint(context.Background(), storage.CheckpointRecord{
+		RunID: runID, StepIndex: u.Loops, Name: name,
+		UsagePromptTokens: u.PromptTokens, UsageCompletionTokens: u.CompletionTokens,
+		UsageDollars: u.Dollars, UsageLoops: u.Loops,
+		Payload: payload, CreatedAt: time.Now(),
+	})
+}
+
 // --- write-through persistence (best-effort; background context) ---
 
 func (m *Manager) persistRun(r *Run) {
@@ -341,6 +412,17 @@ func (m *Manager) persistCall(r *Run, c Call, haltErr error) {
 	}
 
 	m.persistRun(r)
+
+	// Checkpoint after each step: snapshot cumulative usage so a crashed run can
+	// resume from here. Proxy steps carry no payload; SDK checkpoints add one.
+	u, _ := r.gov.Status()
+	if err := m.store.SaveCheckpoint(ctx, storage.CheckpointRecord{
+		RunID: r.ID, StepIndex: c.StepIndex,
+		UsagePromptTokens: u.PromptTokens, UsageCompletionTokens: u.CompletionTokens,
+		UsageDollars: u.Dollars, UsageLoops: u.Loops, CreatedAt: now,
+	}); err != nil {
+		m.log.Error("persist checkpoint failed", "run", r.ID, "step", c.StepIndex, "err", err)
+	}
 }
 
 // noopWriter discards log output for the default in-memory manager.

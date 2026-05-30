@@ -75,6 +75,20 @@ type ToolCallRecord struct {
 	CreatedAt  time.Time
 }
 
+// CheckpointRecord is a crash-resumable snapshot: a run's usage at a step plus an
+// opaque user-supplied payload to restart from.
+type CheckpointRecord struct {
+	RunID                 string
+	StepIndex             int32
+	Name                  string
+	UsagePromptTokens     int64
+	UsageCompletionTokens int64
+	UsageDollars          float64
+	UsageLoops            int32
+	Payload               map[string]any
+	CreatedAt             time.Time
+}
+
 // LedgerTotals aggregates spend for audit/reporting.
 type LedgerTotals struct {
 	RunID            string
@@ -92,6 +106,9 @@ type Store interface {
 	GetRun(ctx context.Context, id string) (RunRecord, error)
 	// ListRuns returns all runs, newest first.
 	ListRuns(ctx context.Context) ([]RunRecord, error)
+	// ListRunsByStatus returns runs in the given lifecycle status (e.g. "running"
+	// for reload-on-startup), newest first.
+	ListRunsByStatus(ctx context.Context, status string) ([]RunRecord, error)
 
 	// UpsertStep inserts or replaces a step row by (run_id, index).
 	UpsertStep(ctx context.Context, s StepRecord) error
@@ -107,6 +124,13 @@ type Store interface {
 
 	// AppendToolCall records a tool invocation.
 	AppendToolCall(ctx context.Context, t ToolCallRecord) error
+
+	// SaveCheckpoint appends a crash-resumable checkpoint.
+	SaveCheckpoint(ctx context.Context, c CheckpointRecord) error
+	// LatestCheckpoint returns a run's most recent checkpoint, or ErrNotFound.
+	LatestCheckpoint(ctx context.Context, runID string) (CheckpointRecord, error)
+	// ListCheckpoints returns a run's checkpoints in time order.
+	ListCheckpoints(ctx context.Context, runID string) ([]CheckpointRecord, error)
 
 	// Close releases the backend's resources.
 	Close() error

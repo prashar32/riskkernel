@@ -40,5 +40,11 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 - **Write-through persistence** — the run manager persists runs, steps, and every
   priced call to the ledger (best-effort, background context, never fails a call).
 - **CLI** — `riskkernel runs list` and `riskkernel audit export <run-id>`.
+- **Crash-resume** — checkpoints table (migration `00002`) snapshots usage after
+  each step plus an opaque payload to restart from. On startup the daemon reloads
+  non-terminal runs and reconstructs each governor with its spent usage, so a
+  `SIGKILL`'d run keeps enforcing against its accumulated budget (budget is *not*
+  reset). `GET /v1/checkpoints/{run_id}` returns the latest checkpoint;
+  `riskkernel runs resume <id>` reports a run's resumable state.
 
 [Unreleased]: https://github.com/prashar32/riskkernel/commits/main

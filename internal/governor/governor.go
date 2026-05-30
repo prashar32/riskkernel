@@ -94,6 +94,14 @@ func WithClock(now func() time.Time) Option {
 	return func(r *Run) { r.now = now }
 }
 
+// WithRestoredUsage seeds a run's accumulated usage — used by crash-resume to
+// reconstruct a run so it keeps enforcing against the budget it already spent
+// before the daemon restarted. The wall-clock budget restarts its clock on
+// resume (it meters a single active session, not downtime).
+func WithRestoredUsage(u Usage) Option {
+	return func(r *Run) { r.usage = u }
+}
+
 // New starts governing a run under budget b. The returned Run derives a Context
 // (from parent) that is cancelled on halt/cancel, and that additionally carries a
 // real-time deadline when a time budget is set — so an in-flight provider call is
