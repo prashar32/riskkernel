@@ -1,13 +1,20 @@
 # Changelog
 
 All notable changes to RiskKernel are documented here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project aims to
-follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html) once `v0.1.0` ships.
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 We ship loudly: every user-facing change lands here, and the stability of each
 surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
+
+## [0.1.0] - 2026-05-31
+
+The first release: the deterministic reliability runtime for AI agents —
+governor, proxy, crash-resume, observability, human-in-the-loop, MCP governance,
+and a memory you own, in one self-hosted binary. Three integration surfaces
+(proxy, Python SDK, OpenTelemetry), Apache-2.0, no telemetry.
 
 ### Added
 - **Public contract (`api/v1`)** — OpenAPI 3.1 spec for the versioned REST surface:
@@ -87,5 +94,10 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   key/value) persist in SQLite (migration `00004`). `GET /v1/memory`,
   `GET /v1/memory/entry`, `GET`/`PUT /v1/memory/facts`; `riskkernel memory
   list/show`; Python SDK `list_memory`/`read_memory`/`list_facts`/`put_fact`.
+- **Packaging & release** — single static binary (`make build`); cross-compiled
+  multi-arch Docker image (distroless, nonroot) on GHCR, **cosign-signed**
+  (keyless) on each `v*` tag; GoReleaser binaries + checksums + GitHub release;
+  `govulncheck` + CodeQL in CI. One-line `docker run` quickstart.
 
-[Unreleased]: https://github.com/prashar32/riskkernel/commits/main
+[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/prashar32/riskkernel/releases/tag/v0.1.0

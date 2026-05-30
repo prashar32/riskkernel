@@ -8,8 +8,8 @@ Deterministic cost / loop / time budgets · full observability · crash-resumabl
 Self-hosted. Your keys. No telemetry. Point it at your existing agents — one env var.
 
 [![CI](https://github.com/prashar32/riskkernel/actions/workflows/ci.yml/badge.svg)](https://github.com/prashar32/riskkernel/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/prashar32/riskkernel?sort=semver)](https://github.com/prashar32/riskkernel/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-pre--v0.1-orange.svg)](CHANGELOG.md)
 
 </div>
 
@@ -41,16 +41,48 @@ It is **not** another gateway (LiteLLM/Portkey own routing), **not** another obs
 2. **Python SDK (deep control).** `pip install riskkernel`, then `@governed_run` / `@governed_tool` / `runtime.budget(...)` / `ApprovalGate`. Adapters for the Claude Agent SDK, OpenAI Agents SDK, and LangChain.
 3. **OpenTelemetry (universal).** RiskKernel is an OTLP endpoint *and* emitter — govern apps already instrumented with OpenLLMetry / the OpenAI Agents SDK, and export to the backend you already run.
 
-## Quickstart
+## Quickstart (60 seconds)
 
-> Status: **pre-v0.1, under active construction.** See [`docs/VISION.md`](docs/VISION.md) for scope and [`CHANGELOG.md`](CHANGELOG.md) for what has landed. This section becomes a working 60-second quickstart at the v0.1.0 tag.
+Run the daemon with a default per-run budget and your key (nothing leaves your
+machine except calls to the provider you choose):
 
 ```bash
-# build the single static binary
-go build -o riskkernel ./cmd/riskkernel
-export ANTHROPIC_API_KEY=sk-ant-...
-./riskkernel serve            # daemon on :7070
+docker run --rm -p 7070:7070 -v "$PWD/data:/data" \
+  -e ANTHROPIC_API_KEY=sk-ant-... \
+  -e RISKKERNEL_DEFAULT_DOLLARS=0.50 \
+  ghcr.io/prashar32/riskkernel:latest
 ```
+
+Now put your **existing** OpenAI-compatible app under governance with **one env
+var** — no code changes — and point it at a Claude model:
+
+```bash
+export OPENAI_BASE_URL=http://localhost:7070/v1
+# your app runs unchanged; every call is metered, priced, budget-enforced
+```
+
+Or hit it directly and watch the governance headers:
+
+```bash
+curl -s -D- http://localhost:7070/v1/chat/completions \
+  -H 'content-type: application/json' \
+  -H 'X-RiskKernel-Run-Id: demo' \
+  -d '{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"hi"}]}'
+# → X-RiskKernel-Cost-Usd, X-RiskKernel-Tokens, X-RiskKernel-Step …
+# the run is killed with HTTP 402 the moment it exceeds $0.50.
+```
+
+Inspect and audit, all on your disk:
+
+```bash
+riskkernel runs list                 # every governed run
+riskkernel audit export <run-id>     # the cost ledger as JSON
+```
+
+Prefer a binary? `go build -o riskkernel ./cmd/riskkernel` (or `make build`), then
+`riskkernel serve`. Deeper control (loops, checkpoints, approval gates) is the
+Python SDK: `pip install riskkernel` — see [`sdks/python`](sdks/python). Trace
+every run in your own backend: [`examples/otel`](examples/otel).
 
 ## Design principles
 

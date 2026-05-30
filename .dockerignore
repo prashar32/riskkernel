@@ -1,0 +1,20 @@
+# Keep the build context small and free of local state/secrets.
+.git
+.github
+data
+*.db
+*.db-wal
+*.db-shm
+.env
+.env.*
+dist
+sdks/python
+examples
+docs
+*.md
+!README.md
+CLAUDE.md
+NoMerge.json
+2*.txt
+coverage.out
+coverage.txt
