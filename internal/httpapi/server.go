@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/prashar32/riskkernel/internal/approval"
 	"github.com/prashar32/riskkernel/internal/config"
 	"github.com/prashar32/riskkernel/internal/gateway"
 	"github.com/prashar32/riskkernel/internal/httpx"
@@ -23,15 +24,16 @@ import (
 
 // Server wires dependencies into an http.Handler. It holds no per-request state.
 type Server struct {
-	cfg     *config.Config
-	gateway *gateway.Gateway
-	runs    *runs.Manager
-	log     *slog.Logger
+	cfg       *config.Config
+	gateway   *gateway.Gateway
+	runs      *runs.Manager
+	approvals *approval.Gate
+	log       *slog.Logger
 }
 
 // New constructs a Server.
-func New(cfg *config.Config, gw *gateway.Gateway, mgr *runs.Manager, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, gateway: gw, runs: mgr, log: log}
+func New(cfg *config.Config, gw *gateway.Gateway, mgr *runs.Manager, gate *approval.Gate, log *slog.Logger) *Server {
+	return &Server{cfg: cfg, gateway: gw, runs: mgr, approvals: gate, log: log}
 }
 
 // Handler returns the root HTTP handler with all routes mounted.
@@ -53,6 +55,13 @@ func (s *Server) Handler() http.Handler {
 	// Public /v1 contract routes (authenticated).
 	if s.runs != nil {
 		mux.HandleFunc("GET /v1/checkpoints/{run_id}", s.requireAuth(s.handleGetCheckpoint))
+		mux.HandleFunc("GET /v1/runs/{id}", s.requireAuth(s.handleGetRun))
+	}
+	if s.approvals != nil {
+		mux.HandleFunc("POST /v1/runs/{id}/approve", s.requireAuth(s.handleApprove))
+		mux.HandleFunc("GET /v1/approvals", s.requireAuth(s.handleListApprovals))
+		// Local admin web page (Surface: human-in-the-loop, pull channel).
+		mux.HandleFunc("GET /admin/approvals", s.requireAuth(s.handleAdminApprovalsPage))
 	}
 	// Further /v1 routes (full runs API) land in later build steps.
 

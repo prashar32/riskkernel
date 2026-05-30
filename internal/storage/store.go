@@ -89,6 +89,28 @@ type CheckpointRecord struct {
 	CreatedAt             time.Time
 }
 
+// Approval status values.
+const (
+	ApprovalPending  = "pending"
+	ApprovalApproved = "approved"
+	ApprovalDenied   = "denied"
+)
+
+// ApprovalRecord is a human-in-the-loop gate on a side-effecting tool call.
+type ApprovalRecord struct {
+	ID         string
+	RunID      string
+	StepIndex  int32
+	Tool       string
+	SideEffect string
+	Arguments  map[string]any
+	Status     string // pending | approved | denied
+	Reason     string
+	DecidedBy  string
+	CreatedAt  time.Time
+	DecidedAt  *time.Time
+}
+
 // LedgerTotals aggregates spend for audit/reporting.
 type LedgerTotals struct {
 	RunID            string
@@ -124,6 +146,15 @@ type Store interface {
 
 	// AppendToolCall records a tool invocation.
 	AppendToolCall(ctx context.Context, t ToolCallRecord) error
+
+	// CreateApproval persists a new (pending) approval request.
+	CreateApproval(ctx context.Context, a ApprovalRecord) error
+	// GetApproval returns an approval by id, or ErrNotFound.
+	GetApproval(ctx context.Context, id string) (ApprovalRecord, error)
+	// ResolveApproval records a decision (approved/denied) on a pending approval.
+	ResolveApproval(ctx context.Context, id, status, reason, decidedBy string, decidedAt time.Time) error
+	// ListApprovals returns approvals filtered by status ("" = all), newest first.
+	ListApprovals(ctx context.Context, status string) ([]ApprovalRecord, error)
 
 	// SaveCheckpoint appends a crash-resumable checkpoint.
 	SaveCheckpoint(ctx context.Context, c CheckpointRecord) error

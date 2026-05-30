@@ -52,5 +52,15 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   gRPC/HTTP via standard `OTEL_*` env vars. **Off unless an endpoint is
   configured** — spans go only to the user's backend. Example Jaeger backend +
   dashboard guidance in `examples/otel/`.
+- **Human-in-the-loop approval gate (Surface: HITL)** — a side-effecting tool call
+  that policy gates pauses until a human approves or denies it. Deterministic
+  policy match (exact tool or side-effect glob, plus a fail-closed default-safe
+  mode); the gate blocks the call and is resolved via three channels: the CLI
+  (`riskkernel approvals list / approve / deny`), a local embedded admin page
+  (`/admin/approvals`), and an optional webhook (`RISKKERNEL_APPROVAL_WEBHOOK`).
+  `POST /v1/runs/{id}/approve`, `GET /v1/approvals`, and `GET /v1/runs/{id}`
+  (surfaces `pendingApproval` + `waiting_approval` status). Approvals are persisted
+  (migration `00003`) as an audit trail. Webhook is user-configured egress only
+  (see SECURITY.md).
 
 [Unreleased]: https://github.com/prashar32/riskkernel/commits/main

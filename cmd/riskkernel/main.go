@@ -44,6 +44,8 @@ func main() {
 		err = runRuns(args)
 	case "audit":
 		err = runAudit(args)
+	case "approvals":
+		err = runApprovals(args)
 	case "version", "--version", "-v":
 		fmt.Println("riskkernel", version.String())
 	case "help", "--help", "-h":
@@ -69,6 +71,9 @@ Usage:
   riskkernel runs list          List persisted governed runs
   riskkernel runs resume <id>   Show a run's resumable state after a crash
   riskkernel audit export <id>  Export a run's cost ledger as JSON
+  riskkernel approvals list     List pending human-in-the-loop approvals
+  riskkernel approvals approve <id> [--reason ...]  Approve a pending request
+  riskkernel approvals deny <id> [--reason ...]     Deny a pending request
   riskkernel version            Print build identity
   riskkernel help               Show this help
 
@@ -112,7 +117,7 @@ func runServe(_ []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	srv := httpapi.New(cfg, deps.Gateway, deps.Runs, deps.Log)
+	srv := httpapi.New(cfg, deps.Gateway, deps.Runs, deps.Approvals, deps.Log)
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	return srv.Serve(ctx, addr)
 }

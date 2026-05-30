@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/prashar32/riskkernel/internal/approval"
 	"github.com/prashar32/riskkernel/internal/config"
 	"github.com/prashar32/riskkernel/internal/gateway"
 	"github.com/prashar32/riskkernel/internal/governor"
@@ -32,6 +33,7 @@ type Deps struct {
 	Gateway   *gateway.Gateway
 	Store     storage.Store
 	Tracer    *otel.Tracer
+	Approvals *approval.Gate
 }
 
 // Close releases dependencies that hold resources (the tracer's buffered spans,
@@ -78,6 +80,12 @@ func Build(cfg *config.Config) (*Deps, error) {
 	mgr := runs.NewManager(toGovernorBudget(cfg.DefaultBudget)).WithStore(store, log)
 	gw := gateway.New(registry, mgr, prices, tracer, log)
 
+	var notifier approval.Notifier
+	if wh := approval.NewWebhookNotifier(cfg.Approval.WebhookURL, log); wh != nil {
+		notifier = wh
+	}
+	gate := approval.NewGate(store, approval.Policy{DefaultSafe: cfg.Approval.DefaultSafe}, notifier, log)
+
 	return &Deps{
 		Config:    cfg,
 		Log:       log,
@@ -87,6 +95,7 @@ func Build(cfg *config.Config) (*Deps, error) {
 		Gateway:   gw,
 		Store:     store,
 		Tracer:    tracer,
+		Approvals: gate,
 	}, nil
 }
 
