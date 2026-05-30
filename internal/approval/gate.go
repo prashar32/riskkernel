@@ -113,6 +113,37 @@ func (g *Gate) Request(ctx context.Context, req Request) (Decision, string, erro
 	}
 }
 
+// Create evaluates policy and, if approval is required, persists a pending
+// approval and notifies push channels, returning the record (required=true).
+// Unlike Request, it does NOT block — the caller (e.g. the SDK over HTTP) polls
+// the approval's status instead. Returns required=false when policy allows the
+// call outright.
+func (g *Gate) Create(ctx context.Context, req Request) (storage.ApprovalRecord, bool, error) {
+	if !g.policy.Requires(req.Tool, req.SideEffect) {
+		return storage.ApprovalRecord{}, false, nil
+	}
+	rec := storage.ApprovalRecord{
+		ID:         g.newID(),
+		RunID:      req.RunID,
+		StepIndex:  req.StepIndex,
+		Tool:       req.Tool,
+		SideEffect: req.SideEffect,
+		Arguments:  req.Arguments,
+		Status:     storage.ApprovalPending,
+		CreatedAt:  g.now(),
+	}
+	if g.store != nil {
+		if err := g.store.CreateApproval(ctx, rec); err != nil {
+			return storage.ApprovalRecord{}, false, err
+		}
+	}
+	if g.notifier != nil {
+		g.notifier.Notify(ctx, rec)
+	}
+	g.log.Info("approval required", "id", rec.ID, "run", rec.RunID, "tool", rec.Tool, "side_effect", rec.SideEffect)
+	return rec, true, nil
+}
+
 // Resolve records a human decision and wakes any blocked waiter. Returns
 // storage.ErrNotFound if the approval is unknown or already resolved.
 func (g *Gate) Resolve(ctx context.Context, id string, approved bool, reason, by string) error {

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "riskkernel"
+version = "0.1.0.dev0"
+description = "Thin Python client for the RiskKernel reliability runtime (Surface 2)."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "Apache-2.0"
+authors = [{ name = "Adarsh Prashar" }]
+keywords = ["llm", "agents", "governance", "reliability", "budget", "guardrails"]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = []  # core is stdlib-only
+
+[project.urls]
+Homepage = "https://github.com/prashar32/riskkernel"
+Source = "https://github.com/prashar32/riskkernel"
+
+[project.optional-dependencies]
+langchain = ["langchain-core"]
+dev = ["pytest"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["riskkernel"]

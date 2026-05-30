@@ -1,0 +1,32 @@
+name: Python SDK
+
+on:
+  push:
+    branches: [main]
+    paths: ["sdks/python/**", ".github/workflows/python.yml"]
+  pull_request:
+    branches: [main]
+    paths: ["sdks/python/**", ".github/workflows/python.yml"]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: test (py${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.9", "3.12"]
+    defaults:
+      run:
+        working-directory: sdks/python
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install (editable, stdlib-only core)
+        run: pip install -e .
+      - name: Test
+        run: python -m unittest discover -s tests -t . -v

@@ -123,6 +123,146 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /v1/runs/{id}/steps:
+    post:
+      tags: [runs]
+      operationId: beginStep
+      summary: Register a loop iteration (enforce loop + time budgets)
+      description: |
+        The Python SDK calls this once per agent loop iteration. It increments the
+        loop counter and enforces the loop and wall-clock budgets. Returns 402 with
+        the HaltReason when the run is out of budget.
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      responses:
+        '200':
+          description: Step registered.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stepIndex:
+                    type: integer
+                    format: int32
+        '402':
+          description: Run halted — loop or time budget exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/runs/{id}/checkpoints:
+    post:
+      tags: [checkpoints]
+      operationId: saveCheckpoint
+      summary: Save a crash-resumable checkpoint
+      description: |
+        Persists an opaque payload (e.g. conversation messages, scratch state)
+        plus a usage snapshot, so a crashed run can resume from here.
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                payload:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '201':
+          description: Checkpoint saved.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/runs/{id}/approvals:
+    post:
+      tags: [approvals]
+      operationId: requestApproval
+      summary: Request approval for a (possibly side-effecting) tool call
+      description: |
+        The SDK's @governed_tool path. If policy allows the call, returns status
+        "approved" immediately. Otherwise creates a pending approval the caller
+        polls via GET /v1/approvals/{id} (resolved by a human via
+        POST /v1/runs/{id}/approve).
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tool]
+              properties:
+                tool:
+                  type: string
+                sideEffect:
+                  type: string
+                stepIndex:
+                  type: integer
+                  format: int32
+                arguments:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Allowed by policy — no human approval required.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  required:
+                    type: boolean
+        '201':
+          description: Approval is pending a human decision.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/approvals/{id}:
+    get:
+      tags: [approvals]
+      operationId: getApproval
+      summary: Get a single approval (poll for resolution)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: The approval and its current status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApprovalRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /v1/runs/{id}/cancel:
     post:
       tags: [runs]
