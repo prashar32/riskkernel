@@ -71,5 +71,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   `ApprovalGate`, `@governed_tool`. Lazy-imported framework adapters for LangChain
   (callback handler), the Claude Agent SDK (PreToolUse hook), and the OpenAI Agents
   SDK (RunHooks). Verified end-to-end against the daemon; CI on Python 3.9/3.12.
+- **MCP gateway** — a JSON-RPC reverse proxy at `POST /mcp` in front of an upstream
+  MCP server. Forwards every method transparently; intercepts `tools/call` to
+  enforce a per-tool allowlist (exact or glob), classify read-only vs
+  side-effecting, route side-effecting tools through the approval gate (blocking,
+  bounded by `RISKKERNEL_MCP_APPROVAL_TIMEOUT`), and record an auditable
+  `tool_calls` row. Enabled by `RISKKERNEL_MCP_UPSTREAM`; allowlist/read-only via
+  `RISKKERNEL_MCP_ALLOWLIST` / `RISKKERNEL_MCP_READONLY`. Point your MCP client at
+  the gateway and governance is invisible to allowed, approved calls.
 
 [Unreleased]: https://github.com/prashar32/riskkernel/commits/main

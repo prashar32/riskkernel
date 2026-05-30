@@ -46,6 +46,29 @@ type Config struct {
 
 	// Approval configures the human-in-the-loop gate.
 	Approval ApprovalConfig
+
+	// MCP configures the MCP gateway (tool governance). Disabled unless an upstream
+	// MCP server URL is set.
+	MCP MCPConfig
+}
+
+// MCPConfig configures the MCP gateway: a JSON-RPC reverse proxy in front of an
+// upstream MCP server that governs tools/call.
+type MCPConfig struct {
+	// Upstream is the real MCP server's HTTP endpoint. Empty disables the gateway.
+	// Read from RISKKERNEL_MCP_UPSTREAM.
+	Upstream string
+	// Allowlist limits which tools may be called (exact name or glob). Empty means
+	// all tools are allowed. Read from RISKKERNEL_MCP_ALLOWLIST (comma-separated).
+	Allowlist []string
+	// ReadOnly names tools that are read-only and therefore never require approval.
+	// Everything else is treated as side-effecting. Read from
+	// RISKKERNEL_MCP_READONLY (comma-separated).
+	ReadOnly []string
+	// ApprovalTimeoutSeconds bounds how long a gated tools/call waits for a human.
+	// Read from RISKKERNEL_MCP_APPROVAL_TIMEOUT (default 110, under the server
+	// write timeout).
+	ApprovalTimeoutSeconds int
 }
 
 // ApprovalConfig configures the human-in-the-loop approval gate.
@@ -120,8 +143,41 @@ func Load() (*Config, error) {
 			DefaultSafe: envBoolDefault("RISKKERNEL_APPROVAL_DEFAULT_SAFE", true),
 			WebhookURL:  os.Getenv("RISKKERNEL_APPROVAL_WEBHOOK"),
 		},
+		MCP: MCPConfig{
+			Upstream:               os.Getenv("RISKKERNEL_MCP_UPSTREAM"),
+			Allowlist:              splitList(os.Getenv("RISKKERNEL_MCP_ALLOWLIST")),
+			ReadOnly:               splitList(os.Getenv("RISKKERNEL_MCP_READONLY")),
+			ApprovalTimeoutSeconds: envIntDefault("RISKKERNEL_MCP_APPROVAL_TIMEOUT", 110),
+		},
 	}
 	return cfg, nil
+}
+
+// splitList parses a comma-separated env value into a trimmed, non-empty slice.
+func splitList(v string) []string {
+	if strings.TrimSpace(v) == "" {
+		return nil
+	}
+	var out []string
+	for _, part := range strings.Split(v, ",") {
+		if p := strings.TrimSpace(part); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+// envIntDefault parses an int env var, returning def when unset or invalid.
+func envIntDefault(key string, def int) int {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return def
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 0 {
+		return def
+	}
+	return n
 }
 
 // envBoolDefault parses a boolean env var, returning def when unset. Accepts

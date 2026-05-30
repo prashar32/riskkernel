@@ -1,0 +1,243 @@
+// Package mcp implements RiskKernel's MCP gateway: a JSON-RPC reverse proxy that
+// sits in front of an upstream MCP server and governs tools/call. Every other MCP
+// method is forwarded transparently; tools/call is intercepted to enforce a
+// per-tool allowlist, route side-effecting tools through the deterministic
+// approval gate, and record an auditable tool_call. Point your MCP client at this
+// gateway instead of the real server — the governance is invisible to allowed,
+// approved calls.
+package mcp
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"log/slog"
+	"net/http"
+	"path"
+	"strings"
+	"time"
+
+	"github.com/prashar32/riskkernel/internal/approval"
+	"github.com/prashar32/riskkernel/internal/id"
+	"github.com/prashar32/riskkernel/internal/runs"
+	"github.com/prashar32/riskkernel/internal/storage"
+)
+
+// HeaderRunID groups MCP calls into a governed run (same header as the proxy).
+const HeaderRunID = "X-RiskKernel-Run-Id"
+
+// Middleware wraps a handler (e.g. with auth).
+type Middleware func(http.HandlerFunc) http.HandlerFunc
+
+// Gateway governs MCP tools/call in front of an upstream MCP server.
+type Gateway struct {
+	upstream        string
+	client          *http.Client
+	allow           []string // empty = allow all; exact name or glob
+	readonly        map[string]bool
+	gate            *approval.Gate
+	runs            *runs.Manager
+	store           storage.Store
+	log             *slog.Logger
+	approvalTimeout time.Duration
+}
+
+// New constructs an MCP gateway. upstream must be non-empty.
+func New(upstream string, allowlist, readonly []string, gate *approval.Gate,
+	mgr *runs.Manager, store storage.Store, approvalTimeout time.Duration, log *slog.Logger) *Gateway {
+	ro := make(map[string]bool, len(readonly))
+	for _, t := range readonly {
+		ro[t] = true
+	}
+	if approvalTimeout <= 0 {
+		approvalTimeout = 110 * time.Second
+	}
+	return &Gateway{
+		upstream:        strings.TrimRight(upstream, "/"),
+		client:          &http.Client{Timeout: 130 * time.Second},
+		allow:           allowlist,
+		readonly:        ro,
+		gate:            gate,
+		runs:            mgr,
+		store:           store,
+		log:             log,
+		approvalTimeout: approvalTimeout,
+	}
+}
+
+// Register mounts the gateway at POST /mcp.
+func (g *Gateway) Register(mux *http.ServeMux, mw Middleware) {
+	if mw == nil {
+		mw = func(h http.HandlerFunc) http.HandlerFunc { return h }
+	}
+	mux.HandleFunc("POST /mcp", mw(g.handle))
+}
+
+// jsonrpcRequest is the subset of a JSON-RPC message we inspect.
+type jsonrpcRequest struct {
+	JSONRPC string          `json:"jsonrpc"`
+	ID      json.RawMessage `json:"id"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params"`
+}
+
+type toolsCallParams struct {
+	Name      string         `json:"name"`
+	Arguments map[string]any `json:"arguments"`
+}
+
+func (g *Gateway) handle(w http.ResponseWriter, r *http.Request) {
+	body, err := io.ReadAll(io.LimitReader(r.Body, 10<<20))
+	if err != nil {
+		http.Error(w, "read error", http.StatusBadRequest)
+		return
+	}
+
+	// Only tools/call is governed; everything else is forwarded verbatim.
+	var req jsonrpcRequest
+	if json.Unmarshal(body, &req) != nil || req.Method != "tools/call" {
+		g.forward(w, r, body)
+		return
+	}
+
+	var params toolsCallParams
+	_ = json.Unmarshal(req.Params, &params)
+	tool := params.Name
+
+	// 1) Allowlist (deterministic).
+	if !g.allowed(tool) {
+		g.log.Warn("mcp tool blocked by allowlist", "tool", tool)
+		writeRPCError(w, req.ID, -32001, "tool not allowed by policy: "+tool)
+		return
+	}
+
+	run := g.resolveRun(r)
+	sideEffect := g.sideEffect(tool)
+	stepIdx := run.View().Usage.Loops
+
+	// 2) Approval gate for side-effecting tools (blocks until resolved or timeout).
+	if sideEffect != "" {
+		ctx, cancel := context.WithTimeout(r.Context(), g.approvalTimeout)
+		defer cancel()
+		decision, _, aerr := g.gate.Request(ctx, approval.Request{
+			RunID: run.ID, StepIndex: stepIdx, Tool: tool,
+			SideEffect: sideEffect, Arguments: params.Arguments,
+		})
+		if aerr != nil {
+			g.recordToolCall(run.ID, stepIdx, tool, sideEffect, params.Arguments, "timeout")
+			writeRPCError(w, req.ID, -32002, "approval timed out or run cancelled for tool: "+tool)
+			return
+		}
+		if !decision.Approved {
+			g.recordToolCall(run.ID, stepIdx, tool, sideEffect, params.Arguments, "denied")
+			writeRPCError(w, req.ID, -32003, "approval denied for tool: "+tool)
+			return
+		}
+	}
+
+	// 3) Forward to the real MCP server and record the (approved) call.
+	g.recordToolCall(run.ID, stepIdx, tool, sideEffect, params.Arguments, "approved")
+	g.forward(w, r, body)
+}
+
+// allowed reports whether the tool passes the allowlist (empty = allow all).
+func (g *Gateway) allowed(tool string) bool {
+	if len(g.allow) == 0 {
+		return true
+	}
+	for _, pat := range g.allow {
+		if pat == tool {
+			return true
+		}
+		if ok, err := path.Match(pat, tool); err == nil && ok {
+			return true
+		}
+	}
+	return false
+}
+
+// sideEffect returns "" for read-only tools (no approval) and "tool" otherwise,
+// so the approval policy (default-safe) decides whether to gate it.
+func (g *Gateway) sideEffect(tool string) string {
+	if g.readonly[tool] {
+		return ""
+	}
+	return "tool"
+}
+
+func (g *Gateway) resolveRun(r *http.Request) *runs.Run {
+	if rid := r.Header.Get(HeaderRunID); rid != "" {
+		return g.runs.GetOrCreate(rid)
+	}
+	return g.runs.Create(runs.CreateOptions{Name: "mcp"})
+}
+
+func (g *Gateway) recordToolCall(runID string, step int32, tool, sideEffect string, args map[string]any, status string) {
+	if g.store == nil {
+		return
+	}
+	err := g.store.AppendToolCall(context.Background(), storage.ToolCallRecord{
+		ID: id.NewUUID(), RunID: runID, StepIndex: step, Tool: tool,
+		SideEffect: sideEffect, Arguments: args, Status: status, CreatedAt: time.Now(),
+	})
+	if err != nil {
+		g.log.Error("persist tool call failed", "run", runID, "tool", tool, "err", err)
+	}
+}
+
+// forward proxies the request body to the upstream MCP server and copies the
+// response back (JSON or SSE).
+func (g *Gateway) forward(w http.ResponseWriter, r *http.Request, body []byte) {
+	upReq, err := http.NewRequestWithContext(r.Context(), http.MethodPost, g.upstream, bytes.NewReader(body))
+	if err != nil {
+		writeRPCError(w, nil, -32603, "internal error building upstream request")
+		return
+	}
+	// Forward content negotiation + MCP session headers.
+	copyHeader(upReq.Header, r.Header, "Content-Type", "Accept", "Mcp-Session-Id", "MCP-Protocol-Version")
+	if upReq.Header.Get("Content-Type") == "" {
+		upReq.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := g.client.Do(upReq)
+	if err != nil {
+		if errors.Is(r.Context().Err(), context.Canceled) {
+			return
+		}
+		writeRPCError(w, nil, -32603, "upstream MCP server unreachable: "+err.Error())
+		return
+	}
+	defer resp.Body.Close()
+
+	copyHeader(w.Header(), resp.Header, "Content-Type", "Mcp-Session-Id")
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
+}
+
+func copyHeader(dst, src http.Header, keys ...string) {
+	for _, k := range keys {
+		if v := src.Get(k); v != "" {
+			dst.Set(k, v)
+		}
+	}
+}
+
+// writeRPCError writes a JSON-RPC 2.0 error response.
+func writeRPCError(w http.ResponseWriter, id json.RawMessage, code int, message string) {
+	if len(id) == 0 {
+		id = json.RawMessage("null")
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK) // JSON-RPC errors ride a 200 envelope
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"error": map[string]any{
+			"code":    code,
+			"message": message,
+			"data":    map[string]any{"source": "riskkernel"},
+		},
+	})
+}

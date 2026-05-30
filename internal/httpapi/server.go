@@ -17,6 +17,7 @@ import (
 	"github.com/prashar32/riskkernel/internal/config"
 	"github.com/prashar32/riskkernel/internal/gateway"
 	"github.com/prashar32/riskkernel/internal/httpx"
+	"github.com/prashar32/riskkernel/internal/mcp"
 	"github.com/prashar32/riskkernel/internal/runs"
 	"github.com/prashar32/riskkernel/internal/storage"
 	"github.com/prashar32/riskkernel/internal/version"
@@ -28,12 +29,14 @@ type Server struct {
 	gateway   *gateway.Gateway
 	runs      *runs.Manager
 	approvals *approval.Gate
+	mcp       *mcp.Gateway
 	log       *slog.Logger
 }
 
 // New constructs a Server.
-func New(cfg *config.Config, gw *gateway.Gateway, mgr *runs.Manager, gate *approval.Gate, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, gateway: gw, runs: mgr, approvals: gate, log: log}
+func New(cfg *config.Config, gw *gateway.Gateway, mgr *runs.Manager, gate *approval.Gate,
+	mcpGW *mcp.Gateway, log *slog.Logger) *Server {
+	return &Server{cfg: cfg, gateway: gw, runs: mgr, approvals: gate, mcp: mcpGW, log: log}
 }
 
 // Handler returns the root HTTP handler with all routes mounted.
@@ -50,6 +53,10 @@ func (s *Server) Handler() http.Handler {
 	// key and RiskKernel swaps in the real key at egress).
 	if s.gateway != nil {
 		s.gateway.Register(mux, s.requireAuth)
+	}
+	// MCP gateway (Surface 1, tool governance) — only when an upstream is set.
+	if s.mcp != nil {
+		s.mcp.Register(mux, s.requireAuth)
 	}
 
 	// Public /v1 contract routes (authenticated).
