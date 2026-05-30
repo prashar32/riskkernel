@@ -1,0 +1,29 @@
+# See your governed runs as traces.
+#
+# This brings up Jaeger all-in-one as a local OTLP backend with a trace UI — the
+# fastest way to eyeball RiskKernel's gen_ai.* + riskkernel.* spans. Any OTLP
+# backend works the same way (SigNoz, Grafana Tempo, Honeycomb, Datadog); just
+# point OTEL_EXPORTER_OTLP_ENDPOINT at it.
+#
+#   docker compose -f examples/otel/docker-compose.yaml up -d
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 \
+#   OTEL_EXPORTER_OTLP_PROTOCOL=grpc \
+#   ANTHROPIC_API_KEY=sk-ant-... \
+#   riskkernel serve
+#
+# Make a governed call through the proxy, then open the UI:
+#
+#   http://localhost:16686   →  Service: "riskkernel"  →  spans named "chat <model>"
+#
+# RiskKernel emits NOTHING unless OTEL_EXPORTER_OTLP_ENDPOINT is set; spans go
+# only to the endpoint you choose. See SECURITY.md.
+
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP

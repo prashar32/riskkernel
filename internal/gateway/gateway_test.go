@@ -12,9 +12,12 @@ import (
 	"testing"
 
 	"github.com/prashar32/riskkernel/internal/governor"
+	"github.com/prashar32/riskkernel/internal/otel"
 	"github.com/prashar32/riskkernel/internal/pricing"
 	"github.com/prashar32/riskkernel/internal/provider"
 	"github.com/prashar32/riskkernel/internal/runs"
+
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 // fakeProvider is a deterministic stand-in for a real provider.
@@ -44,7 +47,7 @@ func newTestGateway(t *testing.T, budget governor.Budget, fp provider.Provider) 
 		t.Fatal(err)
 	}
 	mgr := runs.NewManager(budget)
-	return New(reg, mgr, pricing.NewTable(nil), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	return New(reg, mgr, pricing.NewTable(nil), otel.Disabled(), slog.New(slog.NewTextHandler(io.Discard, nil)))
 }
 
 func postChat(g *Gateway, runID, body string) *httptest.ResponseRecorder {
@@ -188,6 +191,51 @@ func TestMessages_Success(t *testing.T) {
 	}
 	if resp.Usage.InputTokens != 1000 || resp.Usage.OutputTokens != 1000 {
 		t.Errorf("usage = %+v", resp.Usage)
+	}
+}
+
+func TestChatCompletions_EmitsOTelSpan(t *testing.T) {
+	sr := tracetest.NewSpanRecorder()
+	tracer := otel.NewWithProcessor(sr, "test")
+
+	reg, _ := provider.NewRegistry("anthropic", &fakeProvider{name: "anthropic", resp: sonnetResp()})
+	mgr := runs.NewManager(governor.Budget{Tokens: 5000})
+	g := New(reg, mgr, pricing.NewTable(nil), tracer, slog.New(slog.NewTextHandler(io.Discard, nil)))
+
+	w := postChat(g, "trace-run", sonnetBody)
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d", w.Code)
+	}
+
+	spans := sr.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("got %d spans, want 1", len(spans))
+	}
+	a := map[string]string{}
+	ai := map[string]int64{}
+	af := map[string]float64{}
+	for _, kv := range spans[0].Attributes() {
+		switch kv.Value.Type().String() {
+		case "INT64":
+			ai[string(kv.Key)] = kv.Value.AsInt64()
+		case "FLOAT64":
+			af[string(kv.Key)] = kv.Value.AsFloat64()
+		default:
+			a[string(kv.Key)] = kv.Value.AsString()
+		}
+	}
+	if a["riskkernel.run.id"] != "trace-run" || a["gen_ai.system"] != "anthropic" {
+		t.Errorf("span attrs = %v", a)
+	}
+	if ai["gen_ai.usage.input_tokens"] != 1000 || ai["gen_ai.usage.output_tokens"] != 1000 {
+		t.Errorf("usage attrs = %v", ai)
+	}
+	// Budget 5000, used 2000 → remaining 3000.
+	if ai["riskkernel.budget.tokens.limit"] != 5000 || ai["riskkernel.budget.tokens.remaining"] != 3000 {
+		t.Errorf("budget attrs = %v", ai)
+	}
+	if c := af["riskkernel.cost.usd"]; c < 0.0179 || c > 0.0181 {
+		t.Errorf("cost attr = %v, want ~0.018", c)
 	}
 }
 

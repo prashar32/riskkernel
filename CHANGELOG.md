@@ -46,5 +46,11 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   `SIGKILL`'d run keeps enforcing against its accumulated budget (budget is *not*
   reset). `GET /v1/checkpoints/{run_id}` returns the latest checkpoint;
   `riskkernel runs resume <id>` reports a run's resumable state.
+- **OpenTelemetry GenAI export (Surface 3)** — one span per governed model call
+  carrying the pinned `gen_ai.*` + `riskkernel.*` attribute set (provider, model,
+  token usage, cost USD, budget remaining, halt reason, finish reason). OTLP
+  gRPC/HTTP via standard `OTEL_*` env vars. **Off unless an endpoint is
+  configured** — spans go only to the user's backend. Example Jaeger backend +
+  dashboard guidance in `examples/otel/`.
 
 [Unreleased]: https://github.com/prashar32/riskkernel/commits/main

@@ -38,6 +38,28 @@ type Config struct {
 	// DefaultBudget is applied to runs created without an explicit budget — e.g.
 	// proxy calls that supply only a run-id. Any zero field is unlimited.
 	DefaultBudget BudgetConfig
+
+	// OTel configures OpenTelemetry GenAI span export (Surface 3). Disabled unless
+	// an endpoint is set — RiskKernel never emits telemetry unless the user points
+	// it at their own OTLP backend.
+	OTel OTelConfig
+}
+
+// OTelConfig configures OTLP trace export, using standard OpenTelemetry env vars
+// so existing setups need no new configuration.
+type OTelConfig struct {
+	// Endpoint is the OTLP endpoint. Empty disables export entirely. Read from
+	// OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, then OTEL_EXPORTER_OTLP_ENDPOINT.
+	Endpoint string
+	// Protocol is "grpc" (default) or "http" (a.k.a. "http/protobuf"). Read from
+	// OTEL_EXPORTER_OTLP_PROTOCOL.
+	Protocol string
+	// Insecure disables TLS. Defaults true for http:// endpoints, else read from
+	// OTEL_EXPORTER_OTLP_INSECURE.
+	Insecure bool
+	// ServiceName tags exported spans. Read from OTEL_SERVICE_NAME (default
+	// "riskkernel").
+	ServiceName string
 }
 
 // BudgetConfig holds raw budget values (no governor dependency here so config
@@ -79,8 +101,25 @@ func Load() (*Config, error) {
 		AnthropicAPIKey: os.Getenv("ANTHROPIC_API_KEY"),
 		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
 		DefaultBudget:   budget,
+		OTel:            loadOTel(),
 	}
 	return cfg, nil
+}
+
+// loadOTel resolves OpenTelemetry export config from standard OTEL_* env vars.
+func loadOTel() OTelConfig {
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT")
+	if endpoint == "" {
+		endpoint = os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	}
+	insecure := strings.EqualFold(os.Getenv("OTEL_EXPORTER_OTLP_INSECURE"), "true") ||
+		strings.HasPrefix(endpoint, "http://")
+	return OTelConfig{
+		Endpoint:    endpoint,
+		Protocol:    getenvDefault("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc"),
+		Insecure:    insecure,
+		ServiceName: getenvDefault("OTEL_SERVICE_NAME", "riskkernel"),
+	}
 }
 
 // loadBudget reads the optional default-budget env vars. All are optional; an

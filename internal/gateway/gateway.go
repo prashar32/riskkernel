@@ -23,6 +23,7 @@ import (
 
 	"github.com/prashar32/riskkernel/internal/governor"
 	"github.com/prashar32/riskkernel/internal/httpx"
+	"github.com/prashar32/riskkernel/internal/otel"
 	"github.com/prashar32/riskkernel/internal/pricing"
 	"github.com/prashar32/riskkernel/internal/provider"
 	"github.com/prashar32/riskkernel/internal/runs"
@@ -46,12 +47,16 @@ type Gateway struct {
 	providers *provider.Registry
 	runs      *runs.Manager
 	prices    *pricing.Table
+	tracer    *otel.Tracer
 	log       *slog.Logger
 }
 
-// New constructs a Gateway.
-func New(providers *provider.Registry, mgr *runs.Manager, prices *pricing.Table, log *slog.Logger) *Gateway {
-	return &Gateway{providers: providers, runs: mgr, prices: prices, log: log}
+// New constructs a Gateway. tracer may be otel.Disabled() to skip span export.
+func New(providers *provider.Registry, mgr *runs.Manager, prices *pricing.Table, tracer *otel.Tracer, log *slog.Logger) *Gateway {
+	if tracer == nil {
+		tracer = otel.Disabled()
+	}
+	return &Gateway{providers: providers, runs: mgr, prices: prices, tracer: tracer, log: log}
 }
 
 // Register mounts the proxy routes on mux, each wrapped by mw (e.g. auth). A nil
@@ -105,8 +110,16 @@ func (g *Gateway) governedCall(httpReq *http.Request, run *runs.Run, preq provid
 	stop := context.AfterFunc(httpReq.Context(), cancel)
 	defer stop()
 
+	start := time.Now()
 	resp, err := prov.Chat(callCtx, preq)
+	end := time.Now()
 	if err != nil {
+		// Emit an error span for the attempted call, then translate the error.
+		g.tracer.RecordCall(context.Background(), otel.Call{
+			RunID: run.ID, StepIndex: step, Provider: prov.Name(), Operation: "chat",
+			RequestModel: preq.Model, MaxTokens: preq.MaxTokens, Temperature: preq.Temperature,
+			Err: err, Start: start, End: end,
+		})
 		// If the governor halted mid-call (time budget / kill switch), report that
 		// rather than a generic provider error.
 		if run.Halted() {
@@ -135,7 +148,51 @@ func (g *Gateway) governedCall(httpReq *http.Request, run *runs.Run, preq provid
 	if recErr != nil {
 		meta.halt = haltReasonOf(recErr)
 	}
+
+	// Emit the GenAI span with the pinned attribute set (Surface 3).
+	g.emitCallSpan(run, step, prov.Name(), preq, resp, cost, priced, meta.halt, start, end)
 	return resp, meta, nil
+}
+
+// emitCallSpan exports a gen_ai.* + riskkernel.* span for a successful call,
+// computing remaining budget from the run's post-call view.
+func (g *Gateway) emitCallSpan(run *runs.Run, step int32, providerName string, preq provider.Request, resp *provider.Response, cost float64, priced bool, halt governor.HaltReason, start, end time.Time) {
+	if !g.tracer.Enabled() {
+		return
+	}
+	v := run.View()
+	call := otel.Call{
+		RunID: run.ID, StepIndex: step, Provider: providerName, Operation: "chat",
+		RequestModel: preq.Model, ResponseModel: resp.Model,
+		MaxTokens: preq.MaxTokens, Temperature: preq.Temperature,
+		PromptTokens: resp.Usage.PromptTokens, OutputTokens: resp.Usage.CompletionTokens,
+		CostUSD: cost, Priced: priced,
+		FinishReason: resp.FinishReason, ResponseID: resp.ID,
+		HaltReason: string(halt), Start: start, End: end,
+	}
+	if v.Budget.Tokens > 0 {
+		call.BudgetTokensLimit = v.Budget.Tokens
+		call.BudgetTokensRemaining = max64(0, v.Budget.Tokens-v.Usage.Tokens())
+	}
+	if v.Budget.Dollars > 0 {
+		call.BudgetDollarsLimit = v.Budget.Dollars
+		call.BudgetDollarsRemaining = maxF(0, v.Budget.Dollars-v.Usage.Dollars)
+	}
+	g.tracer.RecordCall(context.Background(), call)
+}
+
+func max64(a, b int64) int64 {
+	if a > b {
+		return a
+	}
+	return b
+}
+
+func maxF(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 // stampHeaders writes the governance headers onto a successful proxied response.

@@ -5,14 +5,17 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/prashar32/riskkernel/internal/config"
 	"github.com/prashar32/riskkernel/internal/gateway"
 	"github.com/prashar32/riskkernel/internal/governor"
+	"github.com/prashar32/riskkernel/internal/otel"
 	"github.com/prashar32/riskkernel/internal/pricing"
 	"github.com/prashar32/riskkernel/internal/provider"
 	"github.com/prashar32/riskkernel/internal/runs"
@@ -28,10 +31,17 @@ type Deps struct {
 	Runs      *runs.Manager
 	Gateway   *gateway.Gateway
 	Store     storage.Store
+	Tracer    *otel.Tracer
 }
 
-// Close releases dependencies that hold resources (the store).
+// Close releases dependencies that hold resources (the tracer's buffered spans,
+// then the store).
 func (d *Deps) Close() error {
+	if d.Tracer != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = d.Tracer.Shutdown(ctx)
+	}
 	if d.Store != nil {
 		return d.Store.Close()
 	}
@@ -58,9 +68,15 @@ func Build(cfg *config.Config) (*Deps, error) {
 		return nil, err
 	}
 
+	tracer, err := otel.New(context.Background(), cfg.OTel, log)
+	if err != nil {
+		_ = store.Close()
+		return nil, err
+	}
+
 	prices := pricing.NewTable(nil)
 	mgr := runs.NewManager(toGovernorBudget(cfg.DefaultBudget)).WithStore(store, log)
-	gw := gateway.New(registry, mgr, prices, log)
+	gw := gateway.New(registry, mgr, prices, tracer, log)
 
 	return &Deps{
 		Config:    cfg,
@@ -70,6 +86,7 @@ func Build(cfg *config.Config) (*Deps, error) {
 		Runs:      mgr,
 		Gateway:   gw,
 		Store:     store,
+		Tracer:    tracer,
 	}, nil
 }
 
