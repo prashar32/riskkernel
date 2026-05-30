@@ -1,0 +1,170 @@
+// Command riskkernel is the RiskKernel daemon and CLI (alias: rk).
+//
+// Usage:
+//
+//	riskkernel serve            Run the governance daemon (default port 7070).
+//	riskkernel chat "<prompt>"  One-shot model call — proves the provider path.
+//	riskkernel version          Print build identity.
+//
+// The CLI is the primary human interface. Subcommand dispatch is hand-rolled to
+// keep the dependency surface minimal (no cobra in v0.1).
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+
+	"github.com/prashar32/riskkernel/internal/app"
+	"github.com/prashar32/riskkernel/internal/config"
+	"github.com/prashar32/riskkernel/internal/httpapi"
+	"github.com/prashar32/riskkernel/internal/provider"
+	"github.com/prashar32/riskkernel/internal/version"
+)
+
+func main() {
+	if len(os.Args) < 2 {
+		usage()
+		os.Exit(2)
+	}
+
+	cmd := os.Args[1]
+	args := os.Args[2:]
+
+	var err error
+	switch cmd {
+	case "serve":
+		err = runServe(args)
+	case "chat":
+		err = runChat(args)
+	case "version", "--version", "-v":
+		fmt.Println("riskkernel", version.String())
+	case "help", "--help", "-h":
+		usage()
+	default:
+		fmt.Fprintf(os.Stderr, "unknown command %q\n\n", cmd)
+		usage()
+		os.Exit(2)
+	}
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, "error:", err)
+		os.Exit(1)
+	}
+}
+
+func usage() {
+	fmt.Fprint(os.Stderr, `riskkernel — the risk engine for your AI agents
+
+Usage:
+  riskkernel serve            Run the governance daemon (default :7070)
+  riskkernel chat "<prompt>"  One-shot model call (proves the provider path)
+  riskkernel version          Print build identity
+  riskkernel help             Show this help
+
+Configuration comes from the environment and an optional .env file:
+  RISKKERNEL_PORT             Daemon port (default 7070)
+  RISKKERNEL_DATA_DIR         State directory (default ./data)
+  RISKKERNEL_API_TOKEN        Bearer token guarding the API (optional)
+  RISKKERNEL_DEFAULT_PROVIDER Default provider (default anthropic)
+  ANTHROPIC_API_KEY           Anthropic key (native provider in v0.1)
+`)
+}
+
+// runServe boots the governance daemon and blocks until interrupted.
+func runServe(_ []string) error {
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	log := app.NewLogger()
+
+	registry, err := app.BuildRegistry(cfg)
+	if err != nil {
+		return err
+	}
+
+	if cfg.APIToken == "" {
+		log.Warn("RISKKERNEL_API_TOKEN is not set — the API is unauthenticated; do not expose this port to an untrusted network")
+	}
+	if cfg.AnthropicAPIKey == "" {
+		log.Warn("ANTHROPIC_API_KEY is not set — model calls will fail until a key is provided")
+	}
+
+	// SIGINT/SIGTERM cancel the root context, which drains the server cleanly.
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	srv := httpapi.New(cfg, registry, log)
+	addr := fmt.Sprintf(":%d", cfg.Port)
+	return srv.Serve(ctx, addr)
+}
+
+// runChat performs a single chat completion to prove the end-to-end provider
+// path. It is a developer/diagnostic command, not a governed run.
+func runChat(args []string) error {
+	if len(args) == 0 {
+		return fmt.Errorf("usage: riskkernel chat \"<prompt>\" [--model <id>] [--provider <name>]")
+	}
+
+	model := "claude-sonnet-4-5"
+	providerName := ""
+	var promptParts []string
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--model":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--model requires a value")
+			}
+			i++
+			model = args[i]
+		case "--provider":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--provider requires a value")
+			}
+			i++
+			providerName = args[i]
+		default:
+			promptParts = append(promptParts, args[i])
+		}
+	}
+	prompt := strings.TrimSpace(strings.Join(promptParts, " "))
+	if prompt == "" {
+		return fmt.Errorf("empty prompt")
+	}
+
+	cfg, err := config.Load()
+	if err != nil {
+		return err
+	}
+	registry, err := app.BuildRegistry(cfg)
+	if err != nil {
+		return err
+	}
+	p, err := registry.Get(providerName)
+	if err != nil {
+		return err
+	}
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	resp, err := p.Chat(ctx, provider.Request{
+		Model:     model,
+		Messages:  []provider.Message{{Role: provider.RoleUser, Content: prompt}},
+		MaxTokens: 1024,
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Println(resp.Content)
+	fmt.Fprintf(os.Stderr, "\n[%s/%s] tokens: %d in + %d out = %d  finish: %s\n",
+		p.Name(), resp.Model,
+		resp.Usage.PromptTokens, resp.Usage.CompletionTokens, resp.Usage.Total(),
+		resp.FinishReason)
+	return nil
+}
