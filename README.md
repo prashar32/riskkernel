@@ -43,7 +43,7 @@ It is **not** another gateway (LiteLLM/Portkey own routing), **not** another obs
 
 ## Quickstart
 
-> Status: **pre-v0.1, under active construction.** The build follows the sequence in [`CLAUDE.md`](CLAUDE.md) §8. This section becomes a working 60-second quickstart at the v0.1.0 tag.
+> Status: **pre-v0.1, under active construction.** See [`docs/VISION.md`](docs/VISION.md) for scope and [`CHANGELOG.md`](CHANGELOG.md) for what has landed. This section becomes a working 60-second quickstart at the v0.1.0 tag.
 
 ```bash
 # build the single static binary

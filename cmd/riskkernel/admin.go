@@ -153,7 +153,7 @@ func maxFloat(a, b float64) float64 {
 }
 
 // runAudit implements `riskkernel audit export <run-id>` — emit the auditable
-// cost ledger for a run as JSON. Money must be auditable (CLAUDE.md §10).
+// cost ledger for a run as JSON. Everything touching money must be auditable.
 func runAudit(args []string) error {
 	if len(args) < 2 || args[0] != "export" {
 		return fmt.Errorf("usage: riskkernel audit export <run-id>")

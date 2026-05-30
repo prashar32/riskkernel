@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-// DefaultPort is the daemon's default listen port (CLAUDE.md: 7070).
+// DefaultPort is the daemon's default listen port.
 const DefaultPort = 7070
 
 // Config is the resolved daemon configuration. Field documentation notes the

@@ -1,6 +1,6 @@
 // Package id generates identifiers. RiskKernel mints RFC 4122 v4 UUIDs using
 // crypto/rand — dependency-free, since fewer dependencies means a more auditable
-// trust surface (CLAUDE.md §10).
+// trust surface.
 package id
 
 import (
