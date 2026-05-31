@@ -9,8 +9,8 @@ labeled [`good first issue`](https://github.com/prashar32/riskkernel/labels/good
 
 ## Getting started
 
-Requires **Go 1.23+** (the daemon is pure-Go, no cgo) and, for SDK work, Python
-3.9+.
+Requires **Go 1.25+** (matches the `go` directive in `go.mod`; the daemon is
+pure-Go, no cgo) and, for SDK work, Python 3.9+.
 
 ```bash
 git clone https://github.com/prashar32/riskkernel
