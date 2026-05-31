@@ -9,6 +9,12 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-05-31
+
+A fast follow-up to v0.1.0: makes the Python SDK installable from a build, and
+ships a runnable demo of the headline feature (deterministic budget/loop governance
+killing a runaway agent).
+
 ### Added
 - **`examples/codebase-qa`** — a runnable demo agent (Python SDK + proxy) that
   showcases the headline feature: a real ReAct loop over a codebase that the
@@ -112,5 +118,6 @@ and a memory you own, in one self-hosted binary. Three integration surfaces
   (keyless) on each `v*` tag; GoReleaser binaries + checksums + GitHub release;
   `govulncheck` + CodeQL in CI. One-line `docker run` quickstart.
 
-[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/prashar32/riskkernel/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/prashar32/riskkernel/releases/tag/v0.1.0
