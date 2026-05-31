@@ -113,11 +113,11 @@ type ApprovalRecord struct {
 
 // LedgerTotals aggregates spend for audit/reporting.
 type LedgerTotals struct {
-	RunID            string
-	Calls            int64
-	PromptTokens     int64
-	CompletionTokens int64
-	Dollars          float64
+	RunID            string  `json:"runId"`
+	Calls            int64   `json:"calls"`
+	PromptTokens     int64   `json:"promptTokens"`
+	CompletionTokens int64   `json:"completionTokens"`
+	Dollars          float64 `json:"dollars"`
 }
 
 // Store is the durable backend. Implementations must be safe for concurrent use.
