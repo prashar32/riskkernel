@@ -28,5 +28,12 @@ Source = "https://github.com/prashar32/riskkernel"
 langchain = ["langchain-core"]
 dev = ["pytest"]
 
+# This project lives in a subdirectory (sdks/python) of the repo. Hatchling's
+# VCS-aware file selector lists tracked files relative to the repo root, which
+# don't match the project-root-relative `packages` include — so the wheel comes
+# out empty. Selecting files from the filesystem instead of git fixes it. (#32)
+[tool.hatch.build]
+ignore-vcs = true
+
 [tool.hatch.build.targets.wheel]
 packages = ["riskkernel"]
