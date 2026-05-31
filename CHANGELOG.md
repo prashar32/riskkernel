@@ -9,6 +9,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+### Fixed
+- **Loop/time-budget halts now persist the run status.** A run halted on its loop
+  or wall-clock budget is enforced in `BeginStep`/`CanProceed`, which returned
+  before writing through — so `runs list`, `audit`, and `GET /v1/runs/{id}` still
+  showed it as `running`. The halt (and its reason) is now persisted on that path,
+  matching the token/dollar halt behavior. ([#34](https://github.com/prashar32/riskkernel/issues/34))
+
 ## [0.1.1] - 2026-05-31
 
 A fast follow-up to v0.1.0: makes the Python SDK installable from a build, and

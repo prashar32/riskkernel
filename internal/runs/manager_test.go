@@ -197,3 +197,30 @@ func TestManager_HaltPersistsStatus(t *testing.T) {
 		t.Fatalf("halted step not persisted: %+v", steps)
 	}
 }
+
+// A loop-budget halt happens in BeginStep/PreStep, which returns before recording
+// a call — so the run's persisted status must be updated there too, not only on the
+// RecordCall (token/dollar) path. (#34)
+func TestManager_LoopHaltPersistsStatus(t *testing.T) {
+	store, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "loophalt.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	m := NewManager(governor.Budget{Loops: 1}).
+		WithStore(store, slog.New(slog.NewTextHandler(noopWriter{}, nil)))
+	r := m.Create(CreateOptions{ID: "run-l"})
+
+	if _, err := r.BeginStep(); err != nil { // step 1: allowed (loops 0→1)
+		t.Fatalf("first BeginStep: %v", err)
+	}
+	if _, err := r.BeginStep(); err == nil { // step 2: 1+1 > 1 → loop-budget halt
+		t.Fatal("expected loop-budget halt on second BeginStep")
+	}
+
+	got, _ := store.GetRun(context.Background(), "run-l")
+	if got.Status != "halted" || got.HaltReason != string(governor.HaltLoopBudget) {
+		t.Fatalf("loop halt not persisted: status=%q reason=%q", got.Status, got.HaltReason)
+	}
+}
