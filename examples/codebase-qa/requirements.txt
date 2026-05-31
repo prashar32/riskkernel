@@ -1,5 +1,8 @@
-# The only dependency is the RiskKernel Python SDK (which is stdlib-only itself —
-# the agent uses urllib for the proxy call, no requests/httpx needed).
-# The SDK isn't on PyPI yet, so install it from this repo. From this directory:
-#     pip install -r requirements.txt
-../../sdks/python
+# The only dependency is the RiskKernel Python SDK (stdlib-only itself — the agent
+# uses urllib for the proxy call, no requests/httpx). It isn't on PyPI yet, so it's
+# installed from source. This direct reference works from ANY directory (pip
+# resolves a bare relative path against your CWD, not this file, which is brittle):
+riskkernel @ git+https://github.com/prashar32/riskkernel.git#subdirectory=sdks/python
+
+# Working inside a clone and want your local SDK instead? From THIS directory:
+#     pip install ../../sdks/python
