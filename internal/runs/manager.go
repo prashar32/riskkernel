@@ -69,6 +69,11 @@ type View struct {
 // start another step.
 func (r *Run) BeginStep() (int32, error) {
 	if err := r.gov.PreStep(); err != nil {
+		// PreStep flipped the governor to halted (loop or time budget). Persist that
+		// terminal state — the gateway's 402 path returns here without recording a
+		// call, so without this the run would still read "running" in
+		// runs list / audit / GET. (#34)
+		r.persistHalt()
 		return 0, err
 	}
 	now := time.Now()
@@ -83,7 +88,20 @@ func (r *Run) BeginStep() (int32, error) {
 }
 
 // CanProceed enforces the hard ceiling immediately before a model/tool call.
-func (r *Run) CanProceed() error { return r.gov.CanProceed() }
+func (r *Run) CanProceed() error {
+	if err := r.gov.CanProceed(); err != nil {
+		r.persistHalt() // token/dollar/time ceiling tripped pre-call → persist it (#34)
+		return err
+	}
+	return nil
+}
+
+// persistHalt writes the run's now-halted state through to the store. Best-effort
+// and idempotent; a no-op for the in-memory-only manager (nil store).
+func (r *Run) persistHalt() {
+	r.touch()
+	r.mgr.persistRun(r)
+}
 
 // RecordCall meters a completed model call in the governor and writes through to
 // the cost ledger + step + run rows. Returns a *governor.HaltError if this call
