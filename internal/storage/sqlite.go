@@ -282,6 +282,99 @@ func (s *SQLite) Totals(ctx context.Context, runID string) (LedgerTotals, error)
 	return t, nil
 }
 
+// SummarizeLedger aggregates the cost ledger across runs, grouped by opts.By.
+// The grouping expression is chosen from a fixed whitelist (it's structural and
+// can't be a bound parameter); the metadata key is validated and its JSON path is
+// bound as a value, so nothing here is built from raw user input unsafely.
+func (s *SQLite) SummarizeLedger(ctx context.Context, opts SummarizeOptions) (UsageSummary, error) {
+	var groupExpr, metaArg string
+	needRuns := false
+	switch {
+	case opts.By == "provider":
+		groupExpr = "l.provider"
+	case opts.By == "model":
+		groupExpr = "l.model"
+	case opts.By == "day":
+		groupExpr = "substr(l.created_at, 1, 10)" // RFC3339 date prefix (UTC)
+	case opts.By == "name":
+		groupExpr, needRuns = "r.name", true
+	case strings.HasPrefix(opts.By, "metadata."):
+		key := strings.TrimPrefix(opts.By, "metadata.")
+		if !validMetaKey(key) {
+			return UsageSummary{}, fmt.Errorf("storage: invalid metadata key %q", key)
+		}
+		groupExpr, metaArg, needRuns = "json_extract(r.metadata, ?)", "$."+key, true
+	default:
+		return UsageSummary{}, fmt.Errorf("storage: unsupported group dimension %q", opts.By)
+	}
+
+	from := "cost_ledger l"
+	if needRuns {
+		from += " JOIN runs r ON r.id = l.run_id"
+	}
+
+	var args []any
+	if metaArg != "" { // the json_extract path is the first placeholder, in SELECT
+		args = append(args, metaArg)
+	}
+	var conds []string
+	if opts.Since != nil {
+		conds = append(conds, "l.created_at >= ?")
+		args = append(args, fmtTime(*opts.Since))
+	}
+	if opts.Until != nil {
+		conds = append(conds, "l.created_at < ?")
+		args = append(args, fmtTime(*opts.Until))
+	}
+	where := ""
+	if len(conds) > 0 {
+		where = " WHERE " + strings.Join(conds, " AND ")
+	}
+
+	q := fmt.Sprintf(`
+		SELECT COALESCE(%s, '(none)') AS k,
+			COUNT(*), COALESCE(SUM(l.prompt_tokens), 0), COALESCE(SUM(l.completion_tokens), 0),
+			COALESCE(SUM(l.dollars), 0)
+		FROM %s%s
+		GROUP BY k
+		ORDER BY SUM(l.dollars) DESC, k ASC`, groupExpr, from, where)
+
+	rows, err := s.db.QueryContext(ctx, q, args...)
+	if err != nil {
+		return UsageSummary{}, fmt.Errorf("storage: summarize ledger: %w", err)
+	}
+	defer rows.Close()
+
+	out := UsageSummary{By: opts.By, Groups: []UsageGroup{}, Total: UsageGroup{Key: "total"}}
+	for rows.Next() {
+		var g UsageGroup
+		if err := rows.Scan(&g.Key, &g.Calls, &g.PromptTokens, &g.CompletionTokens, &g.Dollars); err != nil {
+			return UsageSummary{}, err
+		}
+		out.Groups = append(out.Groups, g)
+		out.Total.Calls += g.Calls
+		out.Total.PromptTokens += g.PromptTokens
+		out.Total.CompletionTokens += g.CompletionTokens
+		out.Total.Dollars += g.Dollars
+	}
+	return out, rows.Err()
+}
+
+// validMetaKey allows only flat, identifier-like metadata keys (no JSON-path
+// metacharacters), so the bound "$.<key>" path can't be abused.
+func validMetaKey(k string) bool {
+	if k == "" {
+		return false
+	}
+	for _, r := range k {
+		ok := r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-'
+		if !ok {
+			return false
+		}
+	}
+	return true
+}
+
 // --- tool calls ---
 
 func (s *SQLite) AppendToolCall(ctx context.Context, t ToolCallRecord) error {

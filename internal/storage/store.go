@@ -120,6 +120,35 @@ type LedgerTotals struct {
 	Dollars          float64
 }
 
+// UsageGroup is one bucket of aggregated spend — e.g. one team, one provider, or
+// one day. Tokens/dollars are summed from the cost ledger (the auditable source).
+type UsageGroup struct {
+	Key              string  `json:"key"`
+	Calls            int64   `json:"calls"`
+	PromptTokens     int64   `json:"promptTokens"`
+	CompletionTokens int64   `json:"completionTokens"`
+	Dollars          float64 `json:"dollars"`
+}
+
+// UsageSummary is cost-ledger spend grouped by one dimension, plus the grand total
+// across all groups in range.
+type UsageSummary struct {
+	By     string       `json:"by"`
+	Groups []UsageGroup `json:"groups"`
+	Total  UsageGroup   `json:"total"`
+}
+
+// SummarizeOptions selects how SummarizeLedger aggregates the cost ledger.
+type SummarizeOptions struct {
+	// By is the grouping dimension: "provider", "model", "day", "name", or
+	// "metadata.<key>" (e.g. "metadata.team"). Required.
+	By string
+	// Since/Until optionally bound the call time (created_at): Since is inclusive,
+	// Until exclusive. Nil means unbounded on that end.
+	Since *time.Time
+	Until *time.Time
+}
+
 // Store is the durable backend. Implementations must be safe for concurrent use.
 type Store interface {
 	// UpsertRun inserts or replaces a run row by ID.
@@ -143,6 +172,9 @@ type Store interface {
 	LedgerForRun(ctx context.Context, runID string) ([]LedgerEntry, error)
 	// Totals aggregates a run's ledger.
 	Totals(ctx context.Context, runID string) (LedgerTotals, error)
+	// SummarizeLedger aggregates spend across runs, grouped by opts.By
+	// (provider/model/day/name/metadata.<key>). The unit is the ledger row.
+	SummarizeLedger(ctx context.Context, opts SummarizeOptions) (UsageSummary, error)
 
 	// AppendToolCall records a tool invocation.
 	AppendToolCall(ctx context.Context, t ToolCallRecord) error

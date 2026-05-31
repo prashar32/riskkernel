@@ -150,6 +150,103 @@ func TestLedgerAndTotals(t *testing.T) {
 	}
 }
 
+func TestSummarizeLedger(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	day1 := time.Date(2026, 5, 20, 10, 0, 0, 0, time.UTC)
+	day2 := time.Date(2026, 5, 21, 10, 0, 0, 0, time.UTC)
+
+	mkRun := func(id, name, team string, created time.Time) {
+		if err := s.UpsertRun(ctx, RunRecord{
+			ID: id, Name: name, Status: "running",
+			Metadata:  map[string]string{"team": team},
+			CreatedAt: created, UpdatedAt: created,
+		}); err != nil {
+			t.Fatalf("seed run %s: %v", id, err)
+		}
+	}
+	mkRun("run-a", "alice", "marketing", day1)
+	mkRun("run-b", "bob", "marketing", day1)
+	mkRun("run-c", "carol", "eng", day2)
+
+	for _, e := range []LedgerEntry{
+		{RunID: "run-a", StepIndex: 1, Provider: "anthropic", Model: "claude-haiku", PromptTokens: 100, CompletionTokens: 50, Dollars: 0.01, Priced: true, CreatedAt: day1},
+		{RunID: "run-b", StepIndex: 1, Provider: "anthropic", Model: "claude-haiku", PromptTokens: 200, CompletionTokens: 80, Dollars: 0.012, Priced: true, CreatedAt: day1},
+		{RunID: "run-b", StepIndex: 2, Provider: "anthropic", Model: "claude-haiku", PromptTokens: 50, CompletionTokens: 20, Dollars: 0.008, Priced: true, CreatedAt: day1.Add(time.Second)},
+		{RunID: "run-c", StepIndex: 1, Provider: "openai", Model: "gpt-5", PromptTokens: 300, CompletionTokens: 100, Dollars: 0.05, Priced: true, CreatedAt: day2},
+	} {
+		if err := s.AppendLedger(ctx, e); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	asMap := func(sum UsageSummary) map[string]UsageGroup {
+		m := map[string]UsageGroup{}
+		for _, g := range sum.Groups {
+			m[g.Key] = g
+		}
+		return m
+	}
+	approx := func(got, want float64) bool { return got > want-1e-9 && got < want+1e-9 }
+
+	// by metadata.team — spend rolled up across runs by a user-supplied tag.
+	sum, err := s.SummarizeLedger(ctx, SummarizeOptions{By: "metadata.team"})
+	if err != nil {
+		t.Fatalf("by team: %v", err)
+	}
+	m := asMap(sum)
+	if g := m["marketing"]; g.Calls != 3 || g.PromptTokens != 350 || g.CompletionTokens != 150 || !approx(g.Dollars, 0.03) {
+		t.Fatalf("by team marketing = %+v", g)
+	}
+	if g := m["eng"]; g.Calls != 1 || !approx(g.Dollars, 0.05) {
+		t.Fatalf("by team eng = %+v", g)
+	}
+	if sum.Total.Calls != 4 || !approx(sum.Total.Dollars, 0.08) {
+		t.Fatalf("by team total = %+v", sum.Total)
+	}
+	if len(sum.Groups) != 2 || sum.Groups[0].Key != "eng" { // ordered by $ desc
+		t.Fatalf("group order = %+v", sum.Groups)
+	}
+
+	// by provider
+	sum, _ = s.SummarizeLedger(ctx, SummarizeOptions{By: "provider"})
+	m = asMap(sum)
+	if g := m["anthropic"]; g.Calls != 3 || !approx(g.Dollars, 0.03) {
+		t.Fatalf("by provider anthropic = %+v", g)
+	}
+	if g := m["openai"]; g.Calls != 1 || !approx(g.Dollars, 0.05) {
+		t.Fatalf("by provider openai = %+v", g)
+	}
+
+	// by name → one group per run
+	sum, _ = s.SummarizeLedger(ctx, SummarizeOptions{By: "name"})
+	if len(asMap(sum)) != 3 {
+		t.Fatalf("by name groups = %+v", sum.Groups)
+	}
+
+	// by day, bounded to before day2 → only day1's three calls
+	until := day2
+	sum, err = s.SummarizeLedger(ctx, SummarizeOptions{By: "day", Until: &until})
+	if err != nil {
+		t.Fatalf("by day: %v", err)
+	}
+	m = asMap(sum)
+	if len(m) != 1 {
+		t.Fatalf("day groups (bounded) = %+v", sum.Groups)
+	}
+	if g := m["2026-05-20"]; g.Calls != 3 || !approx(g.Dollars, 0.03) {
+		t.Fatalf("day 2026-05-20 = %+v", g)
+	}
+
+	// guardrails: unsupported dimension and unsafe metadata key are rejected.
+	if _, err := s.SummarizeLedger(ctx, SummarizeOptions{By: "bogus"}); err == nil {
+		t.Fatal("expected error for unsupported dimension")
+	}
+	if _, err := s.SummarizeLedger(ctx, SummarizeOptions{By: "metadata.bad key!"}); err == nil {
+		t.Fatal("expected error for invalid metadata key")
+	}
+}
+
 func TestToolCall(t *testing.T) {
 	s := openTemp(t)
 	ctx := context.Background()
