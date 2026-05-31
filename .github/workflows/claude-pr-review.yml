@@ -5,6 +5,12 @@ name: Claude PR Review
 # generate it locally once with `claude setup-token` and add it as a repo secret.
 # Re-review on demand by commenting "@claude" (see claude.yml). Add `synchronize`
 # below if you also want a fresh review on every push.
+#
+# Fork PRs are skipped (not failed): GitHub does not expose repo secrets to PRs
+# from forks, so the token is unavailable and the action can only fail. External
+# contributions are instead reviewed on demand — the maintainer comments "@claude"
+# (claude.yml runs on issue_comment in the base-repo context, where the secret IS
+# available, and is locked to prashar32).
 on:
   pull_request:
     types: [opened, reopened]
@@ -16,6 +22,9 @@ permissions:
 
 jobs:
   review:
+    # Same-repo PRs only. On a fork PR head.repo.full_name differs from the repo,
+    # the secret is absent, and this job would always fail — so skip it there.
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
