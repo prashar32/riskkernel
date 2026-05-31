@@ -1,7 +1,9 @@
 # --- build: pure-Go static binary (no cgo, thanks to modernc.org/sqlite) ---
 # Runs on the builder's native platform and cross-compiles to the target, so
 # multi-arch builds don't pay the QEMU tax for the Go compile.
-FROM --platform=$BUILDPLATFORM golang:1.23 AS build
+# NOTE: keep this >= the `go` directive in go.mod (currently 1.25.x), or the build
+# fails with "go.mod requires go >= ..." (the image pins GOTOOLCHAIN=local).
+FROM --platform=$BUILDPLATFORM golang:1.25 AS build
 WORKDIR /src
 
 # Cache deps first.
