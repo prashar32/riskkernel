@@ -38,7 +38,7 @@ It is **not** another gateway (LiteLLM/Portkey own routing), **not** another obs
 ## Three ways to adopt — pick the one that fits
 
 1. **Proxy (zero code).** Set one env var: `OPENAI_BASE_URL=http://localhost:7070/v1`. Every call is intercepted, budgeted, logged, checkpointed, and forwarded to the real provider with your key.
-2. **Python SDK (deep control).** `pip install riskkernel`, then `@governed_run` / `@governed_tool` / `runtime.budget(...)` / `ApprovalGate`. Adapters for the Claude Agent SDK, OpenAI Agents SDK, and LangChain.
+2. **Python SDK (deep control).** Install the SDK (from source today — see the [Quickstart](#quickstart-60-seconds)), then `@governed_run` / `@governed_tool` / `runtime.budget(...)` / `ApprovalGate`. Adapters for the Claude Agent SDK, OpenAI Agents SDK, and LangChain.
 3. **OpenTelemetry (universal).** RiskKernel is an OTLP endpoint *and* emitter — govern apps already instrumented with OpenLLMetry / the OpenAI Agents SDK, and export to the backend you already run.
 
 ## Quickstart (60 seconds)
@@ -81,8 +81,14 @@ riskkernel audit export <run-id>     # the cost ledger as JSON
 
 Prefer a binary? `go build -o riskkernel ./cmd/riskkernel` (or `make build`), then
 `riskkernel serve`. Deeper control (loops, checkpoints, approval gates) is the
-Python SDK: `pip install riskkernel` — see [`sdks/python`](sdks/python). Trace
-every run in your own backend: [`examples/otel`](examples/otel).
+Python SDK — install it from source (PyPI publish is on the roadmap):
+
+```bash
+pip install "git+https://github.com/prashar32/riskkernel.git#subdirectory=sdks/python"
+```
+
+See [`sdks/python`](sdks/python). Trace every run in your own backend:
+[`examples/otel`](examples/otel).
 
 Want to *see* the headline feature? [`examples/codebase-qa`](examples/codebase-qa)
 is a runnable agent that loops over a codebase until the governor kills it on its
