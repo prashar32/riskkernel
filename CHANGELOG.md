@@ -9,6 +9,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+### Added
+- **`examples/codebase-qa`** — a runnable demo agent (Python SDK + proxy) that
+  showcases the headline feature: a real ReAct loop over a codebase that the
+  deterministic governor halts on its loop/dollar budget. Includes `--mode normal`
+  (completes within budget) and `--mode runaway` (governor kills it), a bundled
+  sample codebase, and expected terminal output. No RAG, vector DB, or framework.
+
 ## [0.1.0] - 2026-05-31
 
 The first release: the deterministic reliability runtime for AI agents —

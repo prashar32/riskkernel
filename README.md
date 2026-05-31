@@ -84,6 +84,10 @@ Prefer a binary? `go build -o riskkernel ./cmd/riskkernel` (or `make build`), th
 Python SDK: `pip install riskkernel` — see [`sdks/python`](sdks/python). Trace
 every run in your own backend: [`examples/otel`](examples/otel).
 
+Want to *see* the headline feature? [`examples/codebase-qa`](examples/codebase-qa)
+is a runnable agent that loops over a codebase until the governor kills it on its
+loop/dollar budget — the deterministic kill, end to end, with a real model.
+
 ## Design principles
 
 - **Deterministic core in Go.** All enforcement (budgets, kill switches, gating, routing, retries, checkpointing) lives in compiled, statically-typed code — never in an LLM.

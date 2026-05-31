@@ -1,0 +1,5 @@
+# The only dependency is the RiskKernel Python SDK (which is stdlib-only itself —
+# the agent uses urllib for the proxy call, no requests/httpx needed).
+# The SDK isn't on PyPI yet, so install it from this repo. From this directory:
+#     pip install -r requirements.txt
+../../sdks/python
