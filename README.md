@@ -11,6 +11,12 @@ Self-hosted. Your keys. No telemetry. Point it at your existing agents — one e
 [![Release](https://img.shields.io/github/v/release/prashar32/riskkernel?sort=semver)](https://github.com/prashar32/riskkernel/releases)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 
+<br/>
+
+<img src="examples/codebase-qa/runaway.gif" alt="A runaway agent halted at its loop budget — RiskKernel returns HTTP 402 at the loop cap" width="820">
+
+<sub><b>A runaway agent, stopped.</b> It loops over a codebase; the deterministic governor halts it at its loop budget with an HTTP&nbsp;402 — no model call escapes the cap. (<a href="examples/codebase-qa">runnable example</a>)</sub>
+
 </div>
 
 ---
