@@ -9,6 +9,12 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+### Fixed
+- **Python SDK packaged an empty wheel** — `pip install riskkernel` (and installing
+  the SDK by path) installed no modules, so `import riskkernel` failed. The project
+  sits in a repo subdirectory and hatchling's VCS file selector excluded the package
+  files; selecting from the filesystem (`ignore-vcs`) fixes it. ([#32](https://github.com/prashar32/riskkernel/issues/32))
+
 ## [0.1.0] - 2026-05-31
 
 The first release: the deterministic reliability runtime for AI agents —
