@@ -34,35 +34,58 @@ python agent.py --mode runaway           # the money shot — governor kills the
 By default it answers questions about the bundled `./sample` todo app. Point it at
 any codebase with `--dir ../../internal/governor --question "What does this enforce?"`.
 
-## Expected output — `--mode runaway`
+## Output
 
-The counters climb each step, then the governor halts the run:
+Real runs against `claude-haiku-4-5-20251001` (run-ids and exact token/cost numbers
+vary; the structure is the point).
+
+`--mode normal` — reads what it needs, then answers, well under budget:
+
+```
+▶ codebase-qa  mode=normal  dir=.../sample  model=claude-haiku-4-5-20251001
+  budget: loops=10 dollars=$0.1 seconds=120
+  question: What does this codebase do and where is the entrypoint?
+
+  run: d3b4e0db-db34-4bd8-9efc-39171bc782a1
+
+  step  1 │ READ main.py                 │ tokens=  147 │ cost=$0.0002
+  step  2 │ ANSWER                       │ tokens=  462 │ cost=$0.0007
+
+✅ completed within budget.
+
+— Answer —
+This codebase is a todo CLI application. The entrypoint is main.py, which loads
+configuration, initializes a TodoStore database, adds a sample todo item ("write
+the RiskKernel demo"), and then lists and renders all todos to the console.
+```
+
+`--mode runaway` — the money shot. Counters climb each step, then the governor
+refuses the over-budget step:
 
 ```
 ▶ codebase-qa  mode=runaway  dir=.../sample  model=claude-haiku-4-5-20251001
   budget: loops=4 dollars=$0.05 seconds=120
   question: What does this codebase do and where is the entrypoint?
 
-  run: 7f3a1c2e-...
+  run: 5b9a4efa-b714-46bd-9c50-f517d74557e9
 
-  step  1 │ READ main.py                  │ tokens=  190 │ cost=$0.0004
-  step  2 │ READ store.py                 │ tokens=  402 │ cost=$0.0009
-  step  3 │ READ models.py                │ tokens=  611 │ cost=$0.0014
-  step  4 │ READ config.py                │ tokens=  828 │ cost=$0.0019
+  step  1 │ READ README.md               │ tokens=  187 │ cost=$0.0002
+  step  2 │ READ main.py                 │ tokens=  453 │ cost=$0.0005
+  step  3 │ READ config.py               │ tokens=  833 │ cost=$0.0009
+  step  4 │ READ models.py               │ tokens= 1294 │ cost=$0.0014
 
-🛑 RiskKernel HALTED the run — reason: loop_budget_exceeded
-   ── final ledger ─────────────────────────────
-     steps (loops) : 4
-     tokens        : 828
-     cost          : $0.0019
-     run status    : halted  (state persisted & resumable)
-     run id        : 7f3a1c2e-...
-   The agent would have looped forever; the governor stopped it cleanly.
+🛑 RiskKernel refused the next step — reason: loop_budget_exceeded
+   ── final ledger (enforced by the governor) ──
+     steps (loops) :      4   (budget: 4)
+     tokens        :   1294
+     cost          : $  0.0014   (budget: $0.05)
+     run id        : 5b9a4efa-b714-46bd-9c50-f517d74557e9
+   The agent would have looped forever; the governor capped it at 4 steps.
 ```
 
-(Exact token/cost numbers vary with the model; the structure — climbing counters
-then a clean governor kill at the loop cap — is the point.) `--mode normal` instead
-prints a few `READ`/`ANSWER` steps and a final answer, well under budget.
+The 5th call never reaches the model: its `BeginStep` is rejected by the governor
+with HTTP `402 loop_budget_exceeded`, which the SDK surfaces as `BudgetExceeded`.
+That's the deterministic kill — the script never decides to stop.
 
 ## Tuning for a recording
 

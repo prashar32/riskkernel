@@ -181,17 +181,18 @@ def run_agent(directory: Path, question: str, mode: str) -> int:
             print("\n(safety cap reached — your budget is too generous to demo the kill; lower RUNAWAY_BUDGET)")
             return 0
     except rk.BudgetExceeded as e:
-        # The kill came from the governor in the daemon — not from this script.
-        final = rt.client.get_run(run.id)
-        u = final["usage"]
-        print(f"\n🛑 RiskKernel HALTED the run — reason: {e.reason}")
-        print("   ── final ledger ─────────────────────────────")
-        print(f"     steps (loops) : {u['loops']}")
-        print(f"     tokens        : {u['tokens']}")
-        print(f"     cost          : ${u['dollars']:.4f}")
-        print(f"     run status    : {final['status']}  (state persisted & resumable)")
+        # The kill came from the deterministic governor in the daemon (HTTP 402) —
+        # never from this script. e.reason is the machine-readable halt reason, and
+        # the ledger below is the governor's own count, not the agent's.
+        u = rt.client.get_run(run.id)["usage"]
+        print(f"\n🛑 RiskKernel refused the next step — reason: {e.reason}")
+        print("   ── final ledger (enforced by the governor) ──")
+        print(f"     steps (loops) : {u['loops']:>6}   (budget: {budget.loops})")
+        print(f"     tokens        : {u['tokens']:>6}")
+        print(f"     cost          : ${u['dollars']:>8.4f}   (budget: ${budget.dollars})")
         print(f"     run id        : {run.id}")
-        print("   The agent would have looped forever; the governor stopped it cleanly.\n")
+        print(f"   The agent would have looped forever; the governor capped it at "
+              f"{budget.loops} steps.\n")
         return 0
     except rk.APIError as e:
         if "connection" in (e.code or "") or e.status == 0:
