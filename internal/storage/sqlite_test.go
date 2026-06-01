@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -147,6 +148,29 @@ func TestLedgerAndTotals(t *testing.T) {
 	}
 	if d := totals.Dollars; d < 0.0359 || d > 0.0361 {
 		t.Errorf("totals.Dollars = %v, want ~0.036", d)
+	}
+
+	raw, err := json.Marshal(totals)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"runId", "calls", "promptTokens", "completionTokens", "dollars"} {
+		if _, ok := payload[key]; !ok {
+			t.Fatalf("marshaled totals missing %q: %s", key, raw)
+		}
+	}
+	if _, ok := payload["RunID"]; ok {
+		t.Fatalf("marshaled totals uses Go field names: %s", raw)
+	}
+	if payload["runId"] != "run-3" || payload["calls"] != float64(2) || payload["promptTokens"] != float64(300) || payload["completionTokens"] != float64(130) {
+		t.Fatalf("marshaled totals = %s", raw)
+	}
+	if d := payload["dollars"].(float64); d < 0.0359 || d > 0.0361 {
+		t.Fatalf("marshaled dollars = %v, want ~0.036", d)
 	}
 }
 

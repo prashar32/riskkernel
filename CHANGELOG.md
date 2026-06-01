@@ -17,6 +17,9 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   matching the token/dollar halt behavior. ([#34](https://github.com/prashar32/riskkernel/issues/34))
 
 ### Changed
+- **MCP gateway audits allowlist-blocked tool calls.** A `tools/call` refused by the
+  allowlist is now recorded in the `tool_calls` audit trail (status `blocked`)
+  instead of being dropped silently — a refused call is part of the audit record.
 - **Memory entry lookup accepts a name without its extension** — `GET
   /v1/memory/entry?name=runbook` now resolves `runbook.md` (it previously required
   the exact filename and 404'd otherwise). Path-traversal safety is unchanged.
