@@ -106,16 +106,19 @@ func (g *Gateway) handle(w http.ResponseWriter, r *http.Request) {
 	_ = json.Unmarshal(req.Params, &params)
 	tool := params.Name
 
-	// 1) Allowlist (deterministic).
+	run := g.resolveRun(r)
+	stepIdx := run.View().Usage.Loops
+
+	// 1) Allowlist (deterministic). A blocked attempt is recorded too — a refused
+	// tool call is part of the audit trail, not a silent drop.
 	if !g.allowed(tool) {
 		g.log.Warn("mcp tool blocked by allowlist", "tool", tool)
+		g.recordToolCall(run.ID, stepIdx, tool, "", params.Arguments, "blocked")
 		writeRPCError(w, req.ID, -32001, "tool not allowed by policy: "+tool)
 		return
 	}
 
-	run := g.resolveRun(r)
 	sideEffect := g.sideEffect(tool)
-	stepIdx := run.View().Usage.Loops
 
 	// 2) Approval gate for side-effecting tools (blocks until resolved or timeout).
 	if sideEffect != "" {
