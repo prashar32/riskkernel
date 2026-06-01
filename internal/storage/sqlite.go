@@ -392,6 +392,30 @@ func (s *SQLite) AppendToolCall(ctx context.Context, t ToolCallRecord) error {
 	return nil
 }
 
+func (s *SQLite) ListToolCalls(ctx context.Context, runID string) ([]ToolCallRecord, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, run_id, step_idx, tool, side_effect, arguments, status, created_at
+		FROM tool_calls WHERE run_id = ? ORDER BY step_idx, created_at, id`, runID)
+	if err != nil {
+		return nil, fmt.Errorf("storage: list tool calls: %w", err)
+	}
+	defer rows.Close()
+
+	var out []ToolCallRecord
+	for rows.Next() {
+		var t ToolCallRecord
+		var args, created string
+		if err := rows.Scan(&t.ID, &t.RunID, &t.StepIndex, &t.Tool,
+			&t.SideEffect, &args, &t.Status, &created); err != nil {
+			return nil, err
+		}
+		t.Arguments = unmarshalArgs(args)
+		t.CreatedAt = parseTime(created)
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
 // --- helpers ---
 
 type rowScanner interface {
@@ -438,6 +462,17 @@ func unmarshalMeta(s string) map[string]string {
 func orEmptyMap(m map[string]any) map[string]any {
 	if m == nil {
 		return map[string]any{}
+	}
+	return m
+}
+
+func unmarshalArgs(s string) map[string]any {
+	if s == "" || s == "{}" {
+		return nil
+	}
+	var m map[string]any
+	if json.Unmarshal([]byte(s), &m) != nil {
+		return nil
 	}
 	return m
 }

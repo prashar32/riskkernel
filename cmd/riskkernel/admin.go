@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"text/tabwriter"
+	"time"
 
 	"github.com/prashar32/riskkernel/internal/app"
 	"github.com/prashar32/riskkernel/internal/config"
@@ -152,14 +153,22 @@ func maxFloat(a, b float64) float64 {
 	return b
 }
 
-// runAudit implements `riskkernel audit export <run-id>` — emit the auditable
-// cost ledger for a run as JSON. Everything touching money must be auditable.
+// runAudit implements the local audit read-back commands.
 func runAudit(args []string) error {
-	if len(args) < 2 || args[0] != "export" {
-		return fmt.Errorf("usage: riskkernel audit export <run-id>")
+	if len(args) < 2 {
+		return fmt.Errorf("usage: riskkernel audit <export|tools> <run-id>")
 	}
-	runID := args[1]
+	switch args[0] {
+	case "export":
+		return auditExport(args[1])
+	case "tools":
+		return auditTools(args[1])
+	default:
+		return fmt.Errorf("unknown audit subcommand %q (want export|tools)", args[0])
+	}
+}
 
+func auditExport(runID string) error {
 	store, err := openStoreForCLI()
 	if err != nil {
 		return err
@@ -178,16 +187,79 @@ func runAudit(args []string) error {
 	if err != nil {
 		return err
 	}
+	toolCalls, err := store.ListToolCalls(ctx, runID)
+	if err != nil {
+		return err
+	}
 
 	out := struct {
-		RunID   string                `json:"run_id"`
-		Totals  storage.LedgerTotals  `json:"totals"`
-		Entries []storage.LedgerEntry `json:"entries"`
-	}{RunID: runID, Totals: totals, Entries: ledger}
+		RunID     string                `json:"run_id"`
+		Totals    storage.LedgerTotals  `json:"totals"`
+		Entries   []storage.LedgerEntry `json:"entries"`
+		ToolCalls []toolCallJSON        `json:"tool_calls"`
+	}{RunID: runID, Totals: totals, Entries: ledger, ToolCalls: toolCallJSONSlice(toolCalls)}
 
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	return enc.Encode(out)
+}
+
+func auditTools(runID string) error {
+	store, err := openStoreForCLI()
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	if _, err := store.GetRun(ctx, runID); err != nil {
+		return fmt.Errorf("run %s: %w", runID, err)
+	}
+	toolCalls, err := store.ListToolCalls(ctx, runID)
+	if err != nil {
+		return err
+	}
+
+	out := struct {
+		RunID     string         `json:"run_id"`
+		ToolCalls []toolCallJSON `json:"tool_calls"`
+	}{RunID: runID, ToolCalls: toolCallJSONSlice(toolCalls)}
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(out)
+}
+
+type toolCallJSON struct {
+	ID         string         `json:"id"`
+	RunID      string         `json:"runId"`
+	StepIndex  int32          `json:"stepIndex"`
+	Tool       string         `json:"tool"`
+	SideEffect string         `json:"sideEffect"`
+	Arguments  map[string]any `json:"arguments"`
+	Status     string         `json:"status"`
+	CreatedAt  time.Time      `json:"createdAt"`
+}
+
+func toolCallJSONSlice(calls []storage.ToolCallRecord) []toolCallJSON {
+	out := make([]toolCallJSON, 0, len(calls))
+	for _, call := range calls {
+		args := call.Arguments
+		if args == nil {
+			args = map[string]any{}
+		}
+		out = append(out, toolCallJSON{
+			ID:         call.ID,
+			RunID:      call.RunID,
+			StepIndex:  call.StepIndex,
+			Tool:       call.Tool,
+			SideEffect: call.SideEffect,
+			Arguments:  args,
+			Status:     call.Status,
+			CreatedAt:  call.CreatedAt,
+		})
+	}
+	return out
 }
 
 // openStoreForCLI opens the state store for a read-only CLI command.

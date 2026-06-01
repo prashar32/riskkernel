@@ -88,6 +88,28 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /v1/runs/{id}/tool-calls:
+    get:
+      tags: [runs]
+      operationId: listToolCalls
+      summary: List governed tool calls for a run
+      description: Returns the MCP tool-call audit trail recorded for the run.
+      parameters:
+        - $ref: '#/components/parameters/RunId'
+      responses:
+        '200':
+          description: Tool calls in audit order.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ToolCall'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /v1/runs/{id}/approve:
     post:
       tags: [approvals]
@@ -575,6 +597,38 @@ components:
           format: date-time
         usage:
           $ref: '#/components/schemas/Usage'
+
+    ToolCall:
+      type: object
+      required: [id, runId, stepIndex, tool, status, createdAt]
+      description: A governed MCP tool call recorded in the run audit trail.
+      properties:
+        id:
+          type: string
+          format: uuid
+        runId:
+          type: string
+          format: uuid
+        stepIndex:
+          type: integer
+          format: int32
+        tool:
+          type: string
+          description: The tool invoked by the agent.
+        sideEffect:
+          type: string
+          description: Classified side effect, if any.
+        arguments:
+          type: object
+          additionalProperties: true
+          description: The tool-call arguments recorded for audit.
+        status:
+          type: string
+          description: The governance outcome recorded for the call.
+          enum: [pending, approved, denied, blocked, timeout]
+        createdAt:
+          type: string
+          format: date-time
 
     ApprovalRequest:
       type: object

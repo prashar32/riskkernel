@@ -285,6 +285,48 @@ func TestToolCall(t *testing.T) {
 	}
 }
 
+func TestListToolCalls(t *testing.T) {
+	s := openTemp(t)
+	ctx := context.Background()
+	now := time.Now().UTC()
+	mustRun(t, s, "run-tools", now)
+	mustRun(t, s, "other-run", now)
+
+	calls := []ToolCallRecord{
+		{
+			ID: "tc-1", RunID: "run-tools", StepIndex: 2, Tool: "mcp://shell",
+			SideEffect: "exec", Arguments: map[string]any{"cmd": "ls"}, Status: "approved", CreatedAt: now.Add(time.Second),
+		},
+		{
+			ID: "tc-2", RunID: "run-tools", StepIndex: 1, Tool: "mcp://fs",
+			SideEffect: "read", Arguments: map[string]any{"path": "/tmp/a"}, Status: "blocked", CreatedAt: now,
+		},
+		{
+			ID: "tc-other", RunID: "other-run", StepIndex: 1, Tool: "mcp://net",
+			Status: "approved", CreatedAt: now,
+		},
+	}
+	for _, call := range calls {
+		if err := s.AppendToolCall(ctx, call); err != nil {
+			t.Fatalf("AppendToolCall(%s): %v", call.ID, err)
+		}
+	}
+
+	got, err := s.ListToolCalls(ctx, "run-tools")
+	if err != nil {
+		t.Fatalf("ListToolCalls: %v", err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("len(ListToolCalls) = %d, want 2: %+v", len(got), got)
+	}
+	if got[0].ID != "tc-2" || got[1].ID != "tc-1" {
+		t.Fatalf("tool calls not ordered by step/time: %+v", got)
+	}
+	if got[0].Arguments["path"] != "/tmp/a" || got[1].Arguments["cmd"] != "ls" {
+		t.Fatalf("arguments did not round-trip: %+v", got)
+	}
+}
+
 func TestForeignKeyEnforced(t *testing.T) {
 	// A ledger entry for a non-existent run must be rejected (foreign_keys ON).
 	s := openTemp(t)

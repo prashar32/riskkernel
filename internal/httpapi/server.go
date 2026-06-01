@@ -65,6 +65,7 @@ func (s *Server) Handler() http.Handler {
 	if s.runs != nil {
 		mux.HandleFunc("GET /v1/checkpoints/{run_id}", s.requireAuth(s.handleGetCheckpoint))
 		mux.HandleFunc("GET /v1/runs/{id}", s.requireAuth(s.handleGetRun))
+		mux.HandleFunc("GET /v1/runs/{id}/tool-calls", s.requireAuth(s.handleListToolCalls))
 		// Run lifecycle control (Surface 2 — the Python SDK drives these).
 		mux.HandleFunc("POST /v1/runs", s.requireAuth(s.handleCreateRun))
 		mux.HandleFunc("POST /v1/runs/{id}/steps", s.requireAuth(s.handleBeginStep))

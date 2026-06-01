@@ -83,6 +83,7 @@ Inspect and audit, all on your disk:
 ```bash
 riskkernel runs list                 # every governed run
 riskkernel audit export <run-id>     # the cost ledger as JSON
+riskkernel audit tools <run-id>      # governed tool calls as JSON
 ```
 
 Prefer a binary? `go build -o riskkernel ./cmd/riskkernel` (or `make build`), then
