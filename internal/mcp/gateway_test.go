@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -84,6 +85,47 @@ func TestAllowlistBlocks(t *testing.T) {
 	}
 	if *hits != 0 {
 		t.Fatal("blocked tool must NOT reach upstream")
+	}
+}
+
+// spyStore records every tool-call audit row written through it (there is no
+// tool_calls read API yet — that's #38 — so the test observes the writes directly).
+type spyStore struct {
+	storage.Store
+	mu      sync.Mutex
+	records []storage.ToolCallRecord
+}
+
+func (s *spyStore) AppendToolCall(ctx context.Context, t storage.ToolCallRecord) error {
+	s.mu.Lock()
+	s.records = append(s.records, t)
+	s.mu.Unlock()
+	return s.Store.AppendToolCall(ctx, t)
+}
+
+func TestAllowlistBlockIsAudited(t *testing.T) {
+	base, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "audit.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = base.Close() })
+	spy := &spyStore{Store: base}
+	log := slog.New(slog.NewTextHandler(discard{}, nil))
+	gate := approval.NewGate(spy, approval.Policy{DefaultSafe: true}, nil, log)
+	mgr := runs.NewManager(governor.Budget{}).WithStore(spy, log)
+	// Upstream is intentionally unreachable: a blocked tool must never be forwarded.
+	g := New("http://127.0.0.1:1", []string{"safe_*"}, nil, gate, mgr, spy, time.Second, log)
+
+	w := httptest.NewRecorder()
+	g.handle(w, mcpReq(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"danger_rm","arguments":{"path":"/etc"}}}`))
+
+	if e := rpcError(t, w); e == nil || e["code"].(float64) != -32001 {
+		t.Fatalf("expected allowlist error, got %v", e)
+	}
+	spy.mu.Lock()
+	defer spy.mu.Unlock()
+	if len(spy.records) != 1 || spy.records[0].Tool != "danger_rm" || spy.records[0].Status != "blocked" {
+		t.Fatalf("blocked tool not audited: %+v", spy.records)
 	}
 }
 

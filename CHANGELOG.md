@@ -16,6 +16,11 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   showed it as `running`. The halt (and its reason) is now persisted on that path,
   matching the token/dollar halt behavior. ([#34](https://github.com/prashar32/riskkernel/issues/34))
 
+### Changed
+- **MCP gateway audits allowlist-blocked tool calls.** A `tools/call` refused by the
+  allowlist is now recorded in the `tool_calls` audit trail (status `blocked`)
+  instead of being dropped silently — a refused call is part of the audit record.
+
 ## [0.1.1] - 2026-05-31
 
 A fast follow-up to v0.1.0: makes the Python SDK installable from a build, and
