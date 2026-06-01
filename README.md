@@ -108,6 +108,16 @@ loop/dollar budget — the deterministic kill, end to end, with a real model.
 - **Near-zero adoption friction.** Every decision is judged by *"how few changes must an existing user make?"* One env var is the gold standard.
 - **Backwards compatibility is sacred.** Self-hosted users can't be force-migrated. See [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
+## ⭐ If this is useful
+
+RiskKernel is a one-person, build-in-public project. If the idea resonates — or you
+just want runaway agents to stop quietly burning money — a star genuinely helps:
+it's how other people find it, and it tells me which parts are worth building next.
+
+And if you actually run it, I'd love to hear where the guardrails are too strict or
+too loose — [open an issue](https://github.com/prashar32/riskkernel/issues). That
+feedback shapes the roadmap directly.
+
 ## Contributing
 
 Contributions are welcome. Start with [`ARCHITECTURE.md`](ARCHITECTURE.md) for a
