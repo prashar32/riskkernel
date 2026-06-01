@@ -16,6 +16,11 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   showed it as `running`. The halt (and its reason) is now persisted on that path,
   matching the token/dollar halt behavior. ([#34](https://github.com/prashar32/riskkernel/issues/34))
 
+### Changed
+- **Memory entry lookup accepts a name without its extension** — `GET
+  /v1/memory/entry?name=runbook` now resolves `runbook.md` (it previously required
+  the exact filename and 404'd otherwise). Path-traversal safety is unchanged.
+
 ## [0.1.1] - 2026-05-31
 
 A fast follow-up to v0.1.0: makes the Python SDK installable from a build, and

@@ -59,6 +59,10 @@ var memoryExts = map[string]string{
 	".txt":      "text",
 }
 
+// extOrder is the deterministic preference order for extension-less lookups (map
+// iteration is randomized, so resolution must not depend on memoryExts ordering).
+var extOrder = []string{".md", ".markdown", ".yaml", ".yml", ".txt"}
+
 // List returns the memory entries under namespace (recursively). A missing
 // directory yields an empty list, not an error.
 func (r *Reader) List(namespace string) ([]Entry, error) {
@@ -100,9 +104,10 @@ func (r *Reader) List(namespace string) ([]Entry, error) {
 	return out, nil
 }
 
-// Read returns the content and metadata of a memory entry.
+// Read returns the content and metadata of a memory entry. The name may omit the
+// file extension (e.g. "runbook" resolves to "runbook.md").
 func (r *Reader) Read(namespace, name string) (string, Entry, error) {
-	p, err := r.resolveFile(namespace, name)
+	p, resolved, err := r.resolveReadable(namespace, name)
 	if err != nil {
 		return "", Entry{}, err
 	}
@@ -119,11 +124,40 @@ func (r *Reader) Read(namespace, name string) (string, Entry, error) {
 	}
 	info, _ := os.Stat(p)
 	e := Entry{
-		Namespace: namespace, Name: filepath.ToSlash(name), Format: format,
+		Namespace: namespace, Name: filepath.ToSlash(resolved), Format: format,
 		Size: sizeOf(info), ModTime: modTime(info),
 	}
-	e.Title, e.Description = titleFrom(string(data), name, format)
+	e.Title, e.Description = titleFrom(string(data), resolved, format)
 	return string(data), e, nil
+}
+
+// resolveReadable maps a (namespace, name) to an existing file path and the name
+// that matched. It tries the literal name first; on a miss, and only if the name
+// has no recognized memory extension, it tries name + each known extension (so
+// "runbook" finds "runbook.md"). Path-traversal is rejected up front by
+// resolveFile/safeJoin, before any extension fallback.
+func (r *Reader) resolveReadable(namespace, name string) (string, string, error) {
+	p, err := r.resolveFile(namespace, name)
+	if err != nil {
+		return "", "", err // e.g. path escapes the memory root — never fall through
+	}
+	if fi, statErr := os.Stat(p); statErr == nil && !fi.IsDir() {
+		return p, name, nil
+	}
+	if _, known := memoryExts[strings.ToLower(filepath.Ext(name))]; known {
+		return "", "", ErrNotFound // already had a known extension; don't stack another
+	}
+	for _, ext := range extOrder {
+		cand := name + ext
+		cp, err := r.resolveFile(namespace, cand)
+		if err != nil {
+			continue
+		}
+		if fi, statErr := os.Stat(cp); statErr == nil && !fi.IsDir() {
+			return cp, cand, nil
+		}
+	}
+	return "", "", ErrNotFound
 }
 
 // Search returns entries in a namespace whose title, name, or content contains
