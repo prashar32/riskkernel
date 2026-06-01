@@ -20,6 +20,9 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 - **MCP gateway audits allowlist-blocked tool calls.** A `tools/call` refused by the
   allowlist is now recorded in the `tool_calls` audit trail (status `blocked`)
   instead of being dropped silently — a refused call is part of the audit record.
+- **Memory entry lookup accepts a name without its extension** — `GET
+  /v1/memory/entry?name=runbook` now resolves `runbook.md` (it previously required
+  the exact filename and 404'd otherwise). Path-traversal safety is unchanged.
 
 ## [0.1.1] - 2026-05-31
 

@@ -70,6 +70,26 @@ func TestRead(t *testing.T) {
 	}
 }
 
+func TestRead_ExtensionlessName(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "runbook.md", "# Deploy\nbuild, sign, push")
+	r := NewReader(root)
+
+	// "runbook" (no extension) resolves to "runbook.md".
+	content, e, err := r.Read("", "runbook")
+	if err != nil {
+		t.Fatalf("extensionless Read: %v", err)
+	}
+	if content != "# Deploy\nbuild, sign, push" || e.Name != "runbook.md" || e.Format != "markdown" {
+		t.Fatalf("resolved wrong: content=%q entry=%+v", content, e)
+	}
+
+	// A genuinely missing extension-less name is still ErrNotFound.
+	if _, _, err := r.Read("", "nope"); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound, got %v", err)
+	}
+}
+
 func TestSearch(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "ns/a.md", "talks about postgres")
