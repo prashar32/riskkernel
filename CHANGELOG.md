@@ -9,12 +9,21 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-06-01
+
+A polish release: correctness and UX fixes, plus a cleaner audit-export shape.
+No breaking changes; forward-compatible with existing v0.1.x state.
+
 ### Fixed
 - **Loop/time-budget halts now persist the run status.** A run halted on its loop
   or wall-clock budget is enforced in `BeginStep`/`CanProceed`, which returned
   before writing through — so `runs list`, `audit`, and `GET /v1/runs/{id}` still
   showed it as `running`. The halt (and its reason) is now persisted on that path,
   matching the token/dollar halt behavior. ([#34](https://github.com/prashar32/riskkernel/issues/34))
+- **`audit export` totals use API-style JSON keys** — `storage.LedgerTotals` now
+  carries json tags, so the `totals` object emits `runId`/`calls`/`promptTokens`/…
+  to match the rest of the API instead of capitalized Go field names. Thanks
+  @yzhkali! ([#30](https://github.com/prashar32/riskkernel/issues/30))
 
 ### Changed
 - **MCP gateway audits allowlist-blocked tool calls.** A `tools/call` refused by the
@@ -133,6 +142,7 @@ and a memory you own, in one self-hosted binary. Three integration surfaces
   (keyless) on each `v*` tag; GoReleaser binaries + checksums + GitHub release;
   `govulncheck` + CodeQL in CI. One-line `docker run` quickstart.
 
-[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/prashar32/riskkernel/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/prashar32/riskkernel/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/prashar32/riskkernel/releases/tag/v0.1.0
