@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"path/filepath"
 	"testing"
@@ -147,6 +148,37 @@ func TestLedgerAndTotals(t *testing.T) {
 	}
 	if d := totals.Dollars; d < 0.0359 || d > 0.0361 {
 		t.Errorf("totals.Dollars = %v, want ~0.036", d)
+	}
+}
+
+func TestLedgerTotalsJSONTags(t *testing.T) {
+	totals := LedgerTotals{
+		RunID:            "run-3",
+		Calls:            2,
+		PromptTokens:     300,
+		CompletionTokens: 130,
+		Dollars:          0.036,
+	}
+
+	b, err := json.Marshal(totals)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+
+	var got map[string]any
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+
+	for _, key := range []string{"runId", "calls", "promptTokens", "completionTokens", "dollars"} {
+		if _, ok := got[key]; !ok {
+			t.Fatalf("JSON key %q missing from %s", key, string(b))
+		}
+	}
+	for _, key := range []string{"RunID", "Calls", "PromptTokens", "CompletionTokens", "Dollars"} {
+		if _, ok := got[key]; ok {
+			t.Fatalf("unexpected Go field name %q in %s", key, string(b))
+		}
 	}
 }
 
