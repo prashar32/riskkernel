@@ -9,6 +9,12 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+### Added
+- **`tool_calls` audit trail is now readable** — `GET /v1/runs/{id}/tool-calls`,
+  `riskkernel audit tools <run-id>`, and a `tool_calls` array in `audit export`
+  surface the governed MCP tool-call record (it was previously write-only). Thanks
+  @Sebastefanelli! ([#38](https://github.com/prashar32/riskkernel/issues/38))
+
 ## [0.1.2] - 2026-06-01
 
 A polish release: correctness and UX fixes, plus a cleaner audit-export shape.
