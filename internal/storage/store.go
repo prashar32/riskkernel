@@ -178,6 +178,8 @@ type Store interface {
 
 	// AppendToolCall records a tool invocation.
 	AppendToolCall(ctx context.Context, t ToolCallRecord) error
+	// ListToolCalls returns a run's tool invocations in audit order.
+	ListToolCalls(ctx context.Context, runID string) ([]ToolCallRecord, error)
 
 	// PutFact inserts or updates an episodic memory fact by (namespace, key).
 	PutFact(ctx context.Context, f Fact) error

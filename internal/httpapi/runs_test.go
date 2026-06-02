@@ -1,11 +1,15 @@
 package httpapi
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/prashar32/riskkernel/internal/runs"
+	"github.com/prashar32/riskkernel/internal/storage"
 )
 
 func do(t *testing.T, h http.Handler, method, path, body string) *httptest.ResponseRecorder {
@@ -168,5 +172,43 @@ func TestRequestApproval_NotRequired(t *testing.T) {
 	_ = json.Unmarshal(w.Body.Bytes(), &ap)
 	if ap["status"] != "approved" || ap["required"] != false {
 		t.Fatalf("auto-approve response = %v", ap)
+	}
+}
+
+func TestListToolCalls(t *testing.T) {
+	srv, mgr, _ := newTestServer(t, "")
+	h := srv.Handler()
+	mgr.Create(runs.CreateOptions{ID: "run-tools"})
+	if err := mgr.Store().AppendToolCall(context.Background(), storage.ToolCallRecord{
+		ID: "tc-1", RunID: "run-tools", StepIndex: 1, Tool: "mcp://shell",
+		SideEffect: "exec", Arguments: map[string]any{"cmd": "ls"}, Status: "approved",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	w := do(t, h, http.MethodGet, "/v1/runs/run-tools/tool-calls", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body=%s", w.Code, w.Body.String())
+	}
+	var body []map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body) != 1 {
+		t.Fatalf("tool calls = %+v", body)
+	}
+	if body[0]["id"] != "tc-1" || body[0]["runId"] != "run-tools" ||
+		body[0]["stepIndex"].(float64) != 1 || body[0]["sideEffect"] != "exec" ||
+		body[0]["status"] != "approved" {
+		t.Fatalf("tool call body = %+v", body[0])
+	}
+	args := body[0]["arguments"].(map[string]any)
+	if args["cmd"] != "ls" {
+		t.Fatalf("arguments = %+v", args)
+	}
+
+	w = do(t, h, http.MethodGet, "/v1/runs/missing/tool-calls", "")
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("missing run status = %d, want 404", w.Code)
 	}
 }

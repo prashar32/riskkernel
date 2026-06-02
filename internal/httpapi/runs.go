@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/prashar32/riskkernel/internal/approval"
 	"github.com/prashar32/riskkernel/internal/governor"
@@ -99,6 +100,34 @@ func (s *Server) handleCancelRun(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, runViewFromManager(run))
 }
 
+// handleListToolCalls implements GET /v1/runs/{id}/tool-calls.
+func (s *Server) handleListToolCalls(w http.ResponseWriter, r *http.Request) {
+	runID := r.PathValue("id")
+	store := s.runs.Store()
+	if store == nil {
+		httpx.WriteError(w, http.StatusServiceUnavailable, "no_store", "no durable store configured")
+		return
+	}
+	if _, err := store.GetRun(r.Context(), runID); err != nil {
+		if errors.Is(err, storage.ErrNotFound) {
+			httpx.WriteError(w, http.StatusNotFound, "not_found", "run not found")
+			return
+		}
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		return
+	}
+	calls, err := store.ListToolCalls(r.Context(), runID)
+	if err != nil {
+		httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+		return
+	}
+	views := make([]toolCallView, 0, len(calls))
+	for _, call := range calls {
+		views = append(views, toolCallViewFromStorage(call))
+	}
+	httpx.WriteJSON(w, http.StatusOK, views)
+}
+
 type toolApprovalBody struct {
 	Tool       string         `json:"tool"`
 	SideEffect string         `json:"sideEffect"`
@@ -173,6 +202,34 @@ func writeHalt(w http.ResponseWriter, err error) {
 		return
 	}
 	httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+}
+
+type toolCallView struct {
+	ID         string         `json:"id"`
+	RunID      string         `json:"runId"`
+	StepIndex  int32          `json:"stepIndex"`
+	Tool       string         `json:"tool"`
+	SideEffect string         `json:"sideEffect"`
+	Arguments  map[string]any `json:"arguments"`
+	Status     string         `json:"status"`
+	CreatedAt  time.Time      `json:"createdAt"`
+}
+
+func toolCallViewFromStorage(call storage.ToolCallRecord) toolCallView {
+	args := call.Arguments
+	if args == nil {
+		args = map[string]any{}
+	}
+	return toolCallView{
+		ID:         call.ID,
+		RunID:      call.RunID,
+		StepIndex:  call.StepIndex,
+		Tool:       call.Tool,
+		SideEffect: call.SideEffect,
+		Arguments:  args,
+		Status:     call.Status,
+		CreatedAt:  call.CreatedAt,
+	}
 }
 
 func runViewFromManager(run *runs.Run) map[string]any {
