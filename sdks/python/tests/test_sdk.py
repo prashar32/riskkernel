@@ -9,6 +9,15 @@ import riskkernel as rk
 from riskkernel.errors import ApprovalDenied, BudgetExceeded
 
 
+def _has_langchain() -> bool:
+    try:
+        import langchain_core  # noqa: F401
+
+        return True
+    except Exception:
+        return False
+
+
 class _State:
     def __init__(self):
         self.steps = 0
@@ -169,6 +178,51 @@ class SDKTest(unittest.TestCase):
             cfg = run.proxy_config()
             self.assertTrue(cfg["base_url"].endswith("/v1"))
             self.assertEqual(cfg["headers"]["X-RiskKernel-Run-Id"], "run-1")
+
+    # --- LangChain adapter ---
+
+    def test_langchain_handler_enforces_loop_budget(self):
+        from riskkernel.adapters.langchain import RiskKernelCallbackHandler
+
+        with self.rt.governed_run(name="t", budget=self.rt.budget(loops=2)) as run:
+            h = RiskKernelCallbackHandler(run)
+            # Must stay True, or LangChain silently swallows the halt and the chain
+            # keeps spending past budget (see the handler comment + integration test).
+            self.assertTrue(h.raise_error)
+            h.on_chat_model_start({}, [])           # step 1
+            h.on_chat_model_start({}, [])           # step 2
+            with self.assertRaises(BudgetExceeded) as cm:
+                h.on_chat_model_start({}, [])       # step 3 → over the loop budget
+            self.assertEqual(cm.exception.reason, "loop_budget_exceeded")
+
+    def test_langchain_handler_gates_denied_tool(self):
+        from riskkernel.adapters.langchain import RiskKernelCallbackHandler
+
+        with self.rt.governed_run(name="t") as run:
+            run._client.get_approval = lambda _id: {
+                "id": "ap-1", "status": "denied", "reason": "no"}
+            h = RiskKernelCallbackHandler(run, gate_tools=True)
+            with self.assertRaises(ApprovalDenied):
+                h.on_tool_start({"name": "deploy"}, "ship it")
+
+    @unittest.skipUnless(_has_langchain(), "langchain-core not installed")
+    def test_langchain_integration_stops_runaway_loop(self):
+        # The real proof: a runaway LangChain loop must actually stop. on_llm_start
+        # raises BudgetExceeded at the cap, and raise_error=True lets it propagate
+        # out of llm.invoke() — without that flag LangChain would swallow it.
+        from langchain_core.language_models.fake import FakeListLLM
+
+        from riskkernel.adapters.langchain import RiskKernelCallbackHandler
+
+        with self.rt.governed_run(name="t", budget=self.rt.budget(loops=2)) as run:
+            h = RiskKernelCallbackHandler(run)
+            llm = FakeListLLM(responses=["keep going"] * 10)
+            calls = 0
+            with self.assertRaises(BudgetExceeded):
+                while True:                         # a deliberately runaway loop
+                    llm.invoke("step", config={"callbacks": [h]})
+                    calls += 1
+            self.assertEqual(calls, 2)              # 2 calls allowed; the 3rd halted
 
 
 if __name__ == "__main__":

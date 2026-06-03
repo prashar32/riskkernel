@@ -42,6 +42,13 @@ class RiskKernelCallbackHandler(_base_handler()):  # type: ignore[misc]
         tool_side_effect: side-effect label reported for gated tools.
     """
 
+    # LangChain swallows exceptions raised inside a callback — it logs them and
+    # keeps running — UNLESS the handler sets raise_error=True. Without this, a
+    # BudgetExceeded (or ApprovalDenied) raised in a hook below would be silently
+    # dropped and the chain would keep spending past its budget. This single flag
+    # is what makes the deterministic halt actually stop the LangChain run.
+    raise_error = True
+
     def __init__(self, run: Run, gate_tools: bool = False,
                  tool_side_effect: str = "tool"):
         self.run = run
