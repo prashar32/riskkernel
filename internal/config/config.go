@@ -15,6 +15,17 @@ import (
 // DefaultPort is the daemon's default listen port.
 const DefaultPort = 7070
 
+// Safe default budget, applied only when the user configures no default budget
+// at all (none of the RISKKERNEL_DEFAULT_* variables set). A reliability
+// runtime must be safe out of the box — an unconfigured daemon should never
+// allow an unbounded run. Setting ANY RISKKERNEL_DEFAULT_* variable — even to
+// 0 (unlimited) — is an explicit choice and disables these entirely.
+const (
+	SafeDefaultDollars = 5.00 // max $ per run
+	SafeDefaultLoops   = 100  // max loop iterations per run
+	SafeDefaultSeconds = 3600 // max wall-clock per run (1h)
+)
+
 // Config is the resolved daemon configuration. Field documentation notes the
 // environment variable each value is read from.
 type Config struct {
@@ -37,7 +48,9 @@ type Config struct {
 	OpenAIAPIKey    string // OPENAI_API_KEY
 
 	// DefaultBudget is applied to runs created without an explicit budget — e.g.
-	// proxy calls that supply only a run-id. Any zero field is unlimited.
+	// proxy calls that supply only a run-id. Any zero field is unlimited. When no
+	// RISKKERNEL_DEFAULT_* variable is set at all, conservative safe defaults are
+	// applied instead (see SafeDefault*) and Defaulted is true.
 	DefaultBudget BudgetConfig
 
 	// OTel configures OpenTelemetry GenAI span export (Surface 3). Disabled unless
@@ -123,6 +136,11 @@ type BudgetConfig struct {
 	Dollars float64 // RISKKERNEL_DEFAULT_DOLLARS
 	Loops   int32   // RISKKERNEL_DEFAULT_LOOPS
 	Seconds int32   // RISKKERNEL_DEFAULT_SECONDS
+
+	// Defaulted is true when no RISKKERNEL_DEFAULT_* variable was set and the
+	// safe defaults were applied. Used for the prominent startup log only —
+	// enforcement treats the values identically.
+	Defaulted bool
 }
 
 // Load resolves configuration. It first loads KEY=VALUE pairs from .env (if
@@ -231,9 +249,19 @@ func loadOTel() OTelConfig {
 	}
 }
 
-// loadBudget reads the optional default-budget env vars. All are optional; an
-// unset or zero value means unlimited for that dimension.
+// loadBudget reads the optional default-budget env vars. When none is set the
+// safe defaults apply (see SafeDefault*). When at least one is set the user has
+// taken explicit control: each set value is used, and unset or zero values mean
+// unlimited for that dimension.
 func loadBudget() (BudgetConfig, error) {
+	if !anyBudgetEnvSet() {
+		return BudgetConfig{
+			Dollars:   SafeDefaultDollars,
+			Loops:     SafeDefaultLoops,
+			Seconds:   SafeDefaultSeconds,
+			Defaulted: true,
+		}, nil
+	}
 	var b BudgetConfig
 	var err error
 	if b.Tokens, err = envInt64("RISKKERNEL_DEFAULT_TOKENS"); err != nil {
@@ -253,6 +281,21 @@ func loadBudget() (BudgetConfig, error) {
 	}
 	b.Seconds = clampInt32(secs)
 	return b, nil
+}
+
+// anyBudgetEnvSet reports whether the user set any default-budget variable to a
+// non-empty value. An empty value is treated as unset, consistent with how each
+// variable is parsed individually.
+func anyBudgetEnvSet() bool {
+	for _, k := range []string{
+		"RISKKERNEL_DEFAULT_TOKENS", "RISKKERNEL_DEFAULT_DOLLARS",
+		"RISKKERNEL_DEFAULT_LOOPS", "RISKKERNEL_DEFAULT_SECONDS",
+	} {
+		if os.Getenv(k) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // clampInt32 narrows a non-negative int64 to int32, bounding it at math.MaxInt32

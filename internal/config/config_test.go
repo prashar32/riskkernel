@@ -43,6 +43,59 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.DataDir != "./data" {
 		t.Errorf("DataDir = %q", cfg.DataDir)
 	}
+	// With no RISKKERNEL_DEFAULT_* set, the safe default budget must apply.
+	b := cfg.DefaultBudget
+	if !b.Defaulted {
+		t.Error("Defaulted = false, want true when no budget env vars are set")
+	}
+	if b.Dollars != SafeDefaultDollars || b.Loops != SafeDefaultLoops || b.Seconds != SafeDefaultSeconds {
+		t.Errorf("safe defaults = $%v/%d loops/%ds, want $%v/%d/%d",
+			b.Dollars, b.Loops, b.Seconds, SafeDefaultDollars, SafeDefaultLoops, SafeDefaultSeconds)
+	}
+	if b.Tokens != 0 {
+		t.Errorf("Tokens = %d, want 0 (unlimited — dollars caps spend)", b.Tokens)
+	}
+}
+
+func TestLoad_ExplicitBudgetDisablesSafeDefaults(t *testing.T) {
+	withCleanEnv(t)
+	chdirTemp(t)
+	// Setting any one variable — even to 0 — is explicit control: no safe
+	// defaults, unset dimensions are unlimited.
+	t.Setenv("RISKKERNEL_DEFAULT_DOLLARS", "0")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	b := cfg.DefaultBudget
+	if b.Defaulted {
+		t.Error("Defaulted = true, want false when a budget env var is set")
+	}
+	if b.Dollars != 0 || b.Loops != 0 || b.Seconds != 0 || b.Tokens != 0 {
+		t.Errorf("explicit budget = %+v, want all-zero (unlimited)", b)
+	}
+}
+
+func TestLoad_PartialExplicitBudget(t *testing.T) {
+	withCleanEnv(t)
+	chdirTemp(t)
+	t.Setenv("RISKKERNEL_DEFAULT_DOLLARS", "2.50")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	b := cfg.DefaultBudget
+	if b.Defaulted {
+		t.Error("Defaulted = true, want false")
+	}
+	if b.Dollars != 2.50 {
+		t.Errorf("Dollars = %v, want 2.50", b.Dollars)
+	}
+	if b.Loops != 0 || b.Seconds != 0 || b.Tokens != 0 {
+		t.Errorf("unset dimensions should stay unlimited, got %+v", b)
+	}
 }
 
 func TestLoad_EnvOverrides(t *testing.T) {
@@ -103,6 +156,8 @@ func withCleanEnv(t *testing.T) {
 	for _, k := range []string{
 		"RISKKERNEL_PORT", "RISKKERNEL_DATA_DIR", "RISKKERNEL_API_TOKEN",
 		"RISKKERNEL_DEFAULT_PROVIDER", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
+		"RISKKERNEL_DEFAULT_TOKENS", "RISKKERNEL_DEFAULT_DOLLARS",
+		"RISKKERNEL_DEFAULT_LOOPS", "RISKKERNEL_DEFAULT_SECONDS",
 	} {
 		t.Setenv(k, "")
 		os.Unsetenv(k)

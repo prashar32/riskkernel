@@ -25,6 +25,7 @@ every exception here):
 | **Python SDK public methods** | Documented `@governed_run`, `@governed_tool`, `runtime.budget`, `runtime.checkpoint`, `ApprovalGate`. |
 | **OTel attribute names** | The `gen_ai.*` and `riskkernel.*` attribute set pinned in `api/v1/otel-genai.md`. |
 | **Plugin interfaces** | Go interfaces in `pkg/plugin/` (storage, memory, approval channel, provider). |
+| **Budget surface** | The `Budget` schema, `RISKKERNEL_DEFAULT_*` env vars, `X-RiskKernel-*` headers, 402 halt semantics, and `HaltReason` values, per [`docs/BUDGETS.md`](docs/BUDGETS.md). Safe-default *values* are tunable policy, not contract. |
 
 ### Not covered (may change at any time)
 
