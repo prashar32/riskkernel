@@ -8,7 +8,8 @@ SDK just makes governed runs ergonomic from Python. **Core install is stdlib-onl
 (no third-party dependencies).
 
 ```bash
-pip install riskkernel
+# Not on PyPI yet — install from source (the core is stdlib-only, so this is light):
+pip install "git+https://github.com/prashar32/riskkernel.git#subdirectory=sdks/python"
 ```
 
 ## Quickstart

@@ -88,9 +88,17 @@ riskkernel audit export <run-id>     # the cost ledger as JSON
 riskkernel audit tools <run-id>      # governed tool calls as JSON
 ```
 
-Prefer a binary? `go build -o riskkernel ./cmd/riskkernel` (or `make build`), then
-`riskkernel serve`. Deeper control (loops, checkpoints, approval gates) is the
-Python SDK — install it from source (PyPI publish is on the roadmap):
+Prefer a native binary to Docker? Install the CLI with one command — no clone
+needed — and run it:
+
+```bash
+go install github.com/prashar32/riskkernel/cmd/riskkernel@latest
+riskkernel serve
+```
+
+(or `make build` from a clone). Deeper control (loops, checkpoints, approval
+gates) is the Python SDK — install it from source (PyPI publish is on the
+roadmap):
 
 ```bash
 pip install "git+https://github.com/prashar32/riskkernel.git#subdirectory=sdks/python"
