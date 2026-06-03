@@ -103,6 +103,10 @@ Want to *see* the headline feature? [`examples/codebase-qa`](examples/codebase-q
 is a runnable agent that loops over a codebase until the governor kills it on its
 loop/dollar budget — the deterministic kill, end to end, with a real model.
 
+Brand new to the SDK? [`examples/wrap-your-agent`](examples/wrap-your-agent) is the
+no-key, two-minute version — a generic Python loop the governor caps at a loop
+budget, the deterministic kill with nothing running but the daemon.
+
 ## Design principles
 
 - **Deterministic core in Go.** All enforcement (budgets, kill switches, gating, routing, retries, checkpointing) lives in compiled, statically-typed code — never in an LLM.
