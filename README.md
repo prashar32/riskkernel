@@ -115,6 +115,9 @@ Brand new to the SDK? [`examples/wrap-your-agent`](examples/wrap-your-agent) is 
 no-key, two-minute version — a generic Python loop the governor caps at a loop
 budget, the deterministic kill with nothing running but the daemon.
 
+On LangChain? [`examples/langchain`](examples/langchain) wraps a LangChain loop
+with the callback handler and caps it at a loop budget — also key-free.
+
 ## Design principles
 
 - **Deterministic core in Go.** All enforcement (budgets, kill switches, gating, routing, retries, checkpointing) lives in compiled, statically-typed code — never in an LLM.
