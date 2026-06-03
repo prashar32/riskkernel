@@ -25,7 +25,7 @@ Self-hosted. Your keys. No telemetry. Point it at your existing agents — one e
 
 Production AI agents fail in the same handful of ways, every time: **runaway loops**, **surprise token bills**, **no failure recovery**, **no observability**, **no human-in-the-loop**, **no governance**. Agent *frameworks* (LangGraph, CrewAI, AutoGen) orchestrate the reasoning — but none of them ship the guardrails that keep a run from burning $400 in a midnight loop while you sleep.
 
-RiskKernel is the **deterministic, run-level reliability layer** that sits in front of your agents and enforces hard limits. The LLM proposes; deterministic Go code disposes. Every irreversible action is gated.
+RiskKernel is a **self-hosted agent reliability runtime** — the deterministic, run-level layer that sits in front of your agents and enforces hard limits. The LLM proposes; deterministic Go code disposes. Every irreversible action is gated.
 
 It is **not** another gateway (LiteLLM/Portkey own routing), **not** another observability dashboard (Langfuse/Phoenix own traces), and **not** a content-guardrails engine (Guardrails AI/NeMo own PII/jailbreak). It interoperates with all of those and competes on the one thing nobody ships in a single self-hosted binary: **deterministic run controls** — the agent SRE layer.
 
@@ -33,7 +33,7 @@ It is **not** another gateway (LiteLLM/Portkey own routing), **not** another obs
 
 | Capability | What it means |
 |---|---|
-| 💸 **Hard cost ceiling per run** | A run that hits its dollar/token budget is killed cleanly, state persisted. |
+| 💸 **Hard cost ceiling per run** | A run that hits its dollar/token budget is killed cleanly, state persisted. Safe defaults out of the box ([the budget contract](docs/BUDGETS.md)). |
 | 🔁 **Hard loop-iteration cap** | No more infinite agent loops. |
 | ⏱️ **Hard wall-clock budget** | Runs that exceed their time budget halt. |
 | 💾 **Crash-resumable checkpoints** | `SIGKILL` a run; `riskkernel runs resume <id>` picks up from the last step. |
@@ -49,8 +49,10 @@ It is **not** another gateway (LiteLLM/Portkey own routing), **not** another obs
 
 ## Quickstart (60 seconds)
 
-Run the daemon with a default per-run budget and your key (nothing leaves your
-machine except calls to the provider you choose):
+Run the daemon with your key (nothing leaves your machine except calls to the
+provider you choose). Unconfigured, every run gets a safe default budget —
+$5 / 100 loops / 1 hour — so nothing is ever unbounded; here we set an explicit
+50¢ cap (see [the budget contract](docs/BUDGETS.md)):
 
 ```bash
 docker run --rm -p 7070:7070 -v "$PWD/data:/data" \

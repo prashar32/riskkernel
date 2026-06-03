@@ -81,6 +81,19 @@ func Build(cfg *config.Config) (*Deps, error) {
 	}
 
 	prices := pricing.NewTable(nil)
+	if cfg.DefaultBudget.Defaulted {
+		log.Warn("no default budget configured — applying safe defaults",
+			"dollars", cfg.DefaultBudget.Dollars,
+			"loops", cfg.DefaultBudget.Loops,
+			"seconds", cfg.DefaultBudget.Seconds,
+			"hint", "set RISKKERNEL_DEFAULT_DOLLARS / _LOOPS / _SECONDS / _TOKENS to take explicit control (0 = unlimited)")
+	} else {
+		log.Info("default budget configured",
+			"tokens", cfg.DefaultBudget.Tokens,
+			"dollars", cfg.DefaultBudget.Dollars,
+			"loops", cfg.DefaultBudget.Loops,
+			"seconds", cfg.DefaultBudget.Seconds)
+	}
 	mgr := runs.NewManager(toGovernorBudget(cfg.DefaultBudget)).WithStore(store, log)
 	gw := gateway.New(registry, mgr, prices, tracer, log)
 

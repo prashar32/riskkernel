@@ -14,6 +14,19 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   `riskkernel audit tools <run-id>`, and a `tool_calls` array in `audit export`
   surface the governed MCP tool-call record (it was previously write-only). Thanks
   @Sebastefanelli! ([#38](https://github.com/prashar32/riskkernel/issues/38))
+- **`docs/BUDGETS.md`** — the budget surface (cost/loop/time/tokens) defined in
+  one place as a public contract: the four dimensions, where they can be set,
+  precedence, halt semantics, and the stability promise.
+
+### Changed
+- **Safe default budgets out of the box.** A daemon started with *no*
+  `RISKKERNEL_DEFAULT_*` variable set now applies a conservative default budget
+  to runs created without an explicit one — **$5 / 100 loops / 1 hour per run**
+  — and logs it prominently at startup. Previously an unconfigured daemon left
+  runs unlimited, which is the wrong default for a reliability runtime.
+  *Behavior change:* setting any `RISKKERNEL_DEFAULT_*` variable (even to `0`,
+  meaning unlimited) is explicit control and disables the safe defaults
+  entirely — explicit configuration is always respected as-is.
 
 ## [0.1.2] - 2026-06-01
 
