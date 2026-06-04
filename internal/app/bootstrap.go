@@ -69,6 +69,18 @@ func Build(cfg *config.Config) (*Deps, error) {
 		return nil, err
 	}
 
+	// Load any token→$ pricing overrides before acquiring resources, so a bad
+	// pricing file fails fast. Pricing is the dollar budget's basis — refuse to
+	// start on a malformed file rather than silently misprice.
+	var priceOverrides map[string]pricing.Rate
+	if cfg.PricingFile != "" {
+		priceOverrides, err = pricing.LoadOverrides(cfg.PricingFile)
+		if err != nil {
+			return nil, fmt.Errorf("loading pricing overrides: %w", err)
+		}
+		log.Info("pricing overrides loaded", "file", cfg.PricingFile, "models", len(priceOverrides))
+	}
+
 	store, err := OpenStore(cfg, log)
 	if err != nil {
 		return nil, err
@@ -80,7 +92,7 @@ func Build(cfg *config.Config) (*Deps, error) {
 		return nil, err
 	}
 
-	prices := pricing.NewTable(nil)
+	prices := pricing.NewTable(priceOverrides)
 	if cfg.DefaultBudget.Defaulted {
 		log.Warn("no default budget configured — applying safe defaults",
 			"dollars", cfg.DefaultBudget.Dollars,

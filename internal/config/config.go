@@ -53,6 +53,12 @@ type Config struct {
 	// applied instead (see SafeDefault*) and Defaulted is true.
 	DefaultBudget BudgetConfig
 
+	// PricingFile is an optional JSON file of model→rate overrides for the token→$
+	// table — the dollar budget's basis. It lets prices stay current as providers
+	// change them without recompiling. Empty uses the built-in list prices only.
+	// Read from RISKKERNEL_PRICING_FILE.
+	PricingFile string
+
 	// OTel configures OpenTelemetry GenAI span export (Surface 3). Disabled unless
 	// an endpoint is set — RiskKernel never emits telemetry unless the user points
 	// it at their own OTLP backend.
@@ -173,6 +179,7 @@ func Load() (*Config, error) {
 		AnthropicAPIKey: os.Getenv("ANTHROPIC_API_KEY"),
 		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
 		DefaultBudget:   budget,
+		PricingFile:     os.Getenv("RISKKERNEL_PRICING_FILE"),
 		OTel:            loadOTel(),
 		Approval: ApprovalConfig{
 			DefaultSafe: envBoolDefault("RISKKERNEL_APPROVAL_DEFAULT_SAFE", true),

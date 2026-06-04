@@ -2,10 +2,21 @@ package pricing
 
 import (
 	"math"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
 func approx(a, b float64) bool { return math.Abs(a-b) < 1e-9 }
+
+func writeTempPricing(t *testing.T, content string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "pricing.json")
+	if err := os.WriteFile(p, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
 
 func TestCost_KnownModel(t *testing.T) {
 	tbl := NewTable(nil)
@@ -57,5 +68,57 @@ func TestCost_ZeroValueTableUsesDefaults(t *testing.T) {
 	usd, ok := tbl.Cost("gpt-4o-mini", 1_000_000, 0)
 	if !ok || !approx(usd, 0.15) {
 		t.Fatalf("zero-value table cost = %v ok=%v, want 0.15", usd, ok)
+	}
+}
+
+func TestLoadOverrides_AppliedToCost(t *testing.T) {
+	p := writeTempPricing(t, `{"claude-sonnet-4": {"inputPerM": 1.0, "outputPerM": 2.0}}`)
+	ov, err := LoadOverrides(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tbl := NewTable(ov)
+	usd, ok := tbl.Cost("claude-sonnet-4-5", 1_000_000, 1_000_000) // 1.0 + 2.0
+	if !ok || !approx(usd, 3.0) {
+		t.Fatalf("overridden cost = %v ok=%v, want 3.0", usd, ok)
+	}
+}
+
+func TestLoadOverrides_AddsNewModel(t *testing.T) {
+	// A model the built-ins don't know, priced via the override file (prefix match).
+	p := writeTempPricing(t, `{"my-finetune": {"inputPerM": 0.5, "outputPerM": 1.0}}`)
+	ov, err := LoadOverrides(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	usd, ok := NewTable(ov).Cost("my-finetune-v2", 1_000_000, 0)
+	if !ok || !approx(usd, 0.5) {
+		t.Fatalf("new-model cost = %v ok=%v, want 0.5", usd, ok)
+	}
+}
+
+func TestLoadOverrides_Malformed(t *testing.T) {
+	if _, err := LoadOverrides(writeTempPricing(t, `{not valid json`)); err == nil {
+		t.Fatal("malformed JSON should error")
+	}
+}
+
+func TestLoadOverrides_UnknownFieldRejected(t *testing.T) {
+	// A typo'd rate field must fail loudly — otherwise the model would silently
+	// price to $0 and slip past the dollar budget.
+	if _, err := LoadOverrides(writeTempPricing(t, `{"m": {"input_per_m": 3.0}}`)); err == nil {
+		t.Fatal("unknown rate field should error")
+	}
+}
+
+func TestLoadOverrides_NegativeRateRejected(t *testing.T) {
+	if _, err := LoadOverrides(writeTempPricing(t, `{"m": {"inputPerM": -1.0, "outputPerM": 2.0}}`)); err == nil {
+		t.Fatal("negative rate should error")
+	}
+}
+
+func TestLoadOverrides_MissingFile(t *testing.T) {
+	if _, err := LoadOverrides(filepath.Join(t.TempDir(), "nope.json")); err == nil {
+		t.Fatal("missing file should error")
 	}
 }
