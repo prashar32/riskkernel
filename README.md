@@ -118,6 +118,10 @@ budget, the deterministic kill with nothing running but the daemon.
 On LangChain? [`examples/langchain`](examples/langchain) wraps a LangChain loop
 with the callback handler and caps it at a loop budget — also key-free.
 
+Governing tools over MCP? [`examples/mcp`](examples/mcp) puts the MCP gateway in
+front of a stub server and shows a tool blocked by the allowlist, a side-effecting
+tool held for approval, and the audit trail — key-free.
+
 ## Design principles
 
 - **Deterministic core in Go.** All enforcement (budgets, kill switches, gating, routing, retries, checkpointing) lives in compiled, statically-typed code — never in an LLM.
