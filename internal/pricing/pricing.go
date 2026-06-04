@@ -4,12 +4,19 @@
 // config — RiskKernel never asks an LLM what something costs.
 package pricing
 
-import "strings"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"os"
+	"strings"
+)
 
-// Rate is a model's price in USD per 1,000,000 tokens.
+// Rate is a model's price in USD per 1,000,000 tokens. The JSON tags are the
+// pricing-override file format (see LoadOverrides).
 type Rate struct {
-	InputPerM  float64
-	OutputPerM float64
+	InputPerM  float64 `json:"inputPerM"`
+	OutputPerM float64 `json:"outputPerM"`
 }
 
 // defaultRates holds built-in list prices. Matching is by case-insensitive prefix
@@ -45,6 +52,38 @@ func NewTable(overrides map[string]Rate) *Table {
 		m[strings.ToLower(k)] = v
 	}
 	return &Table{rates: m}
+}
+
+// LoadOverrides reads model→Rate overrides from a JSON file — the hook for keeping
+// prices current as providers change them, without recompiling. The format is a
+// map of model name (or prefix) to its rate in USD per 1M tokens:
+//
+//	{
+//	  "claude-sonnet-4": { "inputPerM": 3.0, "outputPerM": 15.0 },
+//	  "my-finetuned-model": { "inputPerM": 0.5, "outputPerM": 1.0 }
+//	}
+//
+// These layer on top of the built-in list prices (pass the result to NewTable).
+// A missing, unreadable, malformed, or negative-rate file is an error: pricing is
+// the dollar budget's basis, so the daemon refuses to start rather than silently
+// misprice.
+func LoadOverrides(path string) (map[string]Rate, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	overrides := make(map[string]Rate)
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&overrides); err != nil {
+		return nil, fmt.Errorf("parsing pricing file %s: %w", path, err)
+	}
+	for model, r := range overrides {
+		if r.InputPerM < 0 || r.OutputPerM < 0 {
+			return nil, fmt.Errorf("pricing file %s: model %q has a negative rate (%+v)", path, model, r)
+		}
+	}
+	return overrides, nil
 }
 
 // Rate returns the rate for a model and whether it was found. Matching is by

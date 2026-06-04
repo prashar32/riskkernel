@@ -123,6 +123,35 @@ per call is priced from provider-reported usage via the pricing table
 (config-updatable — provider pricing drifts), so a single in-flight call can
 land at, but never be issued past, the ceiling.
 
+## Pricing — the dollar budget's basis
+
+A call's cost is computed deterministically from **provider-reported token usage**
+times a per-model rate — no LLM is ever asked what something costs. RiskKernel ships
+built-in list prices (USD per 1M tokens) for the native providers, matched by
+**longest case-insensitive model-name prefix**, so dated snapshots
+(`claude-sonnet-4-5-20250101`) resolve to their family rate.
+
+Provider pricing drifts, and you may run models RiskKernel doesn't know. Point
+`RISKKERNEL_PRICING_FILE` at a JSON file to override built-in rates or add models —
+it layers on top of the defaults:
+
+```json
+{
+  "claude-sonnet-4":     { "inputPerM": 3.0, "outputPerM": 15.0 },
+  "my-finetuned-model":  { "inputPerM": 0.5, "outputPerM": 1.0 }
+}
+```
+
+Keys are model names or prefixes; rates are USD per 1,000,000 tokens. The daemon
+**refuses to start** on a missing, malformed, unknown-field, or negative-rate file
+— pricing affects money, so a typo must fail loudly rather than silently price a
+model at $0 — and logs how many overrides it loaded.
+
+A model with **no** rate (built-in or override) is priced at $0 and recorded with
+`priced: false` in the ledger: its tokens still count toward the *token* budget, but
+it cannot count toward the *dollar* budget. Add it to the pricing file to close that
+gap (`riskkernel audit export <run-id>` shows the per-call `priced` flag).
+
 ## Stability promise
 
 The following are stable per [`COMPATIBILITY.md`](../COMPATIBILITY.md) across
@@ -136,7 +165,9 @@ all v0.x minor versions:
 - HTTP 402 as the budget-halt status and the `HaltReason` enum values above
   (values may be *added*, never renamed or removed within a major version).
 - SDK: `Budget`, `governed_run(budget=...)`, `run.step()`, `BudgetExceeded`.
+- `RISKKERNEL_PRICING_FILE` and its `{ model: { inputPerM, outputPerM } }` format.
 
-The *safe default values* ($5 / 100 loops / 1h) are sane-default policy, not
-contract: they may be tuned in a minor release (with a CHANGELOG entry), since
-anyone depending on exact limits should set them explicitly.
+The *safe default values* ($5 / 100 loops / 1h) and the *built-in model rates* are
+sane-default policy, not contract: they may be tuned in a minor release (with a
+CHANGELOG entry), since anyone depending on exact limits or prices should set them
+explicitly (an explicit budget, or a `RISKKERNEL_PRICING_FILE`).

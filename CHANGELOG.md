@@ -17,6 +17,12 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 - **`docs/BUDGETS.md`** — the budget surface (cost/loop/time/tokens) defined in
   one place as a public contract: the four dimensions, where they can be set,
   precedence, halt semantics, and the stability promise.
+- **Updatable token→$ pricing.** Point `RISKKERNEL_PRICING_FILE` at a JSON file of
+  `{ model: { inputPerM, outputPerM } }` to override the built-in list prices or
+  add models — the dollar budget's basis, kept current as providers change pricing
+  without recompiling. Overrides layer on the defaults; the daemon refuses to start
+  on a malformed, unknown-field, or negative-rate file. See
+  [`docs/BUDGETS.md`](docs/BUDGETS.md#pricing--the-dollar-budgets-basis).
 
 ### Changed
 - **Safe default budgets out of the box.** A daemon started with *no*
