@@ -1,5 +1,6 @@
 """SDK tests against a stdlib stub daemon — no Go binary, no third-party deps."""
 
+import asyncio
 import json
 import threading
 import unittest
@@ -12,6 +13,15 @@ from riskkernel.errors import ApprovalDenied, BudgetExceeded
 def _has_langchain() -> bool:
     try:
         import langchain_core  # noqa: F401
+
+        return True
+    except Exception:
+        return False
+
+
+def _has_openai_agents() -> bool:
+    try:
+        import agents  # noqa: F401
 
         return True
     except Exception:
@@ -223,6 +233,68 @@ class SDKTest(unittest.TestCase):
                     llm.invoke("step", config={"callbacks": [h]})
                     calls += 1
             self.assertEqual(calls, 2)              # 2 calls allowed; the 3rd halted
+
+    # --- OpenAI Agents adapter ---
+
+    def test_openai_agents_hooks_enforce_loop_budget(self):
+        from riskkernel.adapters.openai_agents import RiskKernelRunHooks
+
+        async def scenario():
+            with self.rt.governed_run(name="t", budget=self.rt.budget(loops=2)) as run:
+                hooks = RiskKernelRunHooks(run)
+                await hooks.on_agent_start()        # one agent turn == one step
+                await hooks.on_agent_start()        # step 2
+                with self.assertRaises(BudgetExceeded) as cm:
+                    await hooks.on_agent_start()    # step 3 → over the loop budget
+                self.assertEqual(cm.exception.reason, "loop_budget_exceeded")
+
+        asyncio.run(scenario())
+
+    def test_openai_agents_hooks_gate_denied_tool(self):
+        from riskkernel.adapters.openai_agents import RiskKernelRunHooks
+
+        class _Tool:
+            name = "deploy"
+
+        async def scenario():
+            with self.rt.governed_run(name="t") as run:
+                run._client.get_approval = lambda _id: {
+                    "id": "ap-1", "status": "denied", "reason": "no"}
+                hooks = RiskKernelRunHooks(run, gate_tools=True)
+                with self.assertRaises(ApprovalDenied):
+                    await hooks.on_tool_start(tool=_Tool())
+
+        asyncio.run(scenario())
+
+    @unittest.skipUnless(_has_openai_agents(), "openai-agents not installed")
+    def test_openai_agents_integration_halts_run(self):
+        # The real proof: a budget halt raised in a RunHook must propagate out of
+        # Runner.run and stop the agent. (The OpenAI Agents SDK awaits hooks via
+        # asyncio.gather, so it doesn't swallow the exception the way LangChain does
+        # without raise_error — this guards that assumption against an SDK change.)
+        from agents import Agent, Runner, set_tracing_disabled
+        from agents.models.interface import Model
+
+        from riskkernel.adapters.openai_agents import RiskKernelRunHooks
+
+        set_tracing_disabled(True)  # no API key needed
+
+        class FakeModel(Model):
+            async def get_response(self, *a, **k):
+                raise AssertionError("model should not be called — the hook halts first")
+
+            def stream_response(self, *a, **k):
+                raise AssertionError("stream_response should not be called")
+
+        async def scenario():
+            STATE.loop_budget = 0                   # the very first step is over budget
+            with self.rt.governed_run(name="t", budget=self.rt.budget(loops=0)) as run:
+                hooks = RiskKernelRunHooks(run)
+                agent = Agent(name="probe", model=FakeModel())
+                with self.assertRaises(BudgetExceeded):
+                    await Runner.run(agent, "hi", hooks=hooks)
+
+        asyncio.run(scenario())
 
 
 if __name__ == "__main__":
