@@ -9,6 +9,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-04
+
+A frictionless-adoption release: a one-line CLI install, three runnable key-free
+examples, safe default budgets out of the box, config-updatable model pricing, and
+a fix that makes LangChain budget enforcement actually stop the chain. No breaking
+API changes; forward-compatible with existing v0.1.x state.
+
 ### Added
 - **`tool_calls` audit trail is now readable** — `GET /v1/runs/{id}/tool-calls`,
   `riskkernel audit tools <run-id>`, and a `tool_calls` array in `audit export`
@@ -23,6 +30,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   without recompiling. Overrides layer on the defaults; the daemon refuses to start
   on a malformed, unknown-field, or negative-rate file. See
   [`docs/BUDGETS.md`](docs/BUDGETS.md#pricing--the-dollar-budgets-basis).
+- **Runnable, key-free examples.** `examples/wrap-your-agent` (a generic governed
+  Python loop), `examples/langchain` (a LangChain agent capped at its loop budget),
+  and `examples/mcp` (the MCP gateway's allowlist, approval gate, and audit trail) —
+  each runs with nothing but the daemon, no API key.
+- **One-line CLI install.** `go install github.com/prashar32/riskkernel/cmd/riskkernel@latest`
+  needs no clone; the SDK's install-from-source command is documented (a PyPI
+  publish is still pending).
 
 ### Changed
 - **Safe default budgets out of the box.** A daemon started with *no*
@@ -33,6 +47,14 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   *Behavior change:* setting any `RISKKERNEL_DEFAULT_*` variable (even to `0`,
   meaning unlimited) is explicit control and disables the safe defaults
   entirely — explicit configuration is always respected as-is.
+
+### Fixed
+- **LangChain budget halts now actually stop the chain.** The callback handler
+  raised `BudgetExceeded` / `ApprovalDenied` from its hooks, but LangChain swallows
+  exceptions thrown inside a callback unless the handler sets `raise_error=True` — so
+  on a real LangChain agent the halt was silently dropped and the run kept spending
+  past budget. The handler now propagates the halt; the OpenAI Agents adapter was
+  audited for the same flaw (it propagates correctly) and has regression tests.
 
 ## [0.1.2] - 2026-06-01
 
@@ -167,7 +189,8 @@ and a memory you own, in one self-hosted binary. Three integration surfaces
   (keyless) on each `v*` tag; GoReleaser binaries + checksums + GitHub release;
   `govulncheck` + CodeQL in CI. One-line `docker run` quickstart.
 
-[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/prashar32/riskkernel/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/prashar32/riskkernel/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/prashar32/riskkernel/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/prashar32/riskkernel/releases/tag/v0.1.0
