@@ -58,6 +58,9 @@ class StubHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         p = self.path
+        if p == "/v1/runs/run-1":
+            return self._send(200, {"id": "run-1", "name": "t", "status": "running",
+                                    "usage": {"tokens": 0, "loops": STATE.steps}})
         if p.startswith("/v1/memory/facts"):
             return self._send(200, [{"namespace": "dev", "key": "db", "value": "sqlite"}])
         if p.startswith("/v1/memory/entry"):
@@ -132,6 +135,22 @@ class SDKTest(unittest.TestCase):
             with self.assertRaises(BudgetExceeded) as cm:
                 run.step()
             self.assertEqual(cm.exception.reason, "loop_budget_exceeded")
+
+    def test_resume_run_attaches_without_creating(self):
+        # The post-crash path: resume an existing run by id. resume_run attaches a
+        # handle (no new run, no cancel) that keeps stepping/checkpointing against
+        # the SAME run, and reads the checkpoint it left off at.
+        with self.rt.governed_run(name="t", budget=self.rt.budget(loops=5)) as run:
+            run.step()                                    # one step before the "crash"
+            run.checkpoint("before-crash", {"cursor": 1})
+            rid = run.id
+
+        with self.rt.resume_run(rid) as resumed:
+            self.assertEqual(resumed.id, rid)             # same run, not a new one
+            self.assertEqual(rk.current_run().id, rid)    # set as the current run
+            cp = resumed.latest_checkpoint()
+            self.assertEqual(cp["payload"]["cursor"], 1)  # where we left off
+            self.assertEqual(resumed.step(), 2)           # continues the same step count
 
     def test_checkpoint_roundtrip(self):
         with self.rt.governed_run(name="t") as run:
