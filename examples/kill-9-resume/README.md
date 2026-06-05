@@ -98,10 +98,11 @@ watch `riskkernel audit export <run-id>` before and after the crash.
 ## A note on the crash instant
 
 If the daemon dies *in the middle of a step* (after the loop is counted but before
-that step's checkpoint), resume re-attempts exactly that one step — at most one
-step of work is repeated, never the whole run. Tightening that boundary (partial
-tool calls, mid-stream responses) is ongoing hardening; the budget is always
-restored exactly.
+that step's checkpoint), the daemon rolls that partial step back on restart — so the
+**budget is charged exactly once**, never twice. At most one step's *work* is
+re-attempted, never the whole run; because that step can run twice, side-effecting
+tools should be idempotent. The full model — what's restored, exact-once semantics,
+and idempotency — is in the [crash-resume guide](../../docs/RESUME.md).
 
 ## Tuning for a recording
 
