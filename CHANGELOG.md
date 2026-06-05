@@ -19,6 +19,9 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   agent whose daemon is `kill -9`'d mid-run resumes from its last checkpoint and
   finishes without re-spending; `./demo.sh` scripts the whole crash-and-recover and
   proves the loop counter doesn't double. Key-free.
+- **Crash-resume guide** ([`docs/RESUME.md`](docs/RESUME.md)) — the full model: what's
+  restored, the exact-once budget guarantee, writing a resumable agent with
+  `resume_run`, and the one thing that's yours (idempotent side effects).
 
 ### Fixed
 - **Resume is exact-once across a mid-step crash.** If the daemon died after a step

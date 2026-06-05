@@ -36,7 +36,7 @@ It is **not** another gateway (LiteLLM/Portkey own routing), **not** another obs
 | 💸 **Hard cost ceiling per run** | A run that hits its dollar/token budget is killed cleanly, state persisted. Safe defaults out of the box ([the budget contract](docs/BUDGETS.md)). |
 | 🔁 **Hard loop-iteration cap** | No more infinite agent loops. |
 | ⏱️ **Hard wall-clock budget** | Runs that exceed their time budget halt. |
-| 💾 **Crash-resumable checkpoints** | `kill -9` the daemon mid-run; it reloads with the budget already spent and resumes from the last checkpoint — without re-spending ([the flagship demo](examples/kill-9-resume)). |
+| 💾 **Crash-resumable checkpoints** | `kill -9` the daemon mid-run; it reloads with the budget already spent and resumes from the last checkpoint — without re-spending. [Guide](docs/RESUME.md) · [demo](examples/kill-9-resume). |
 | ✋ **Framework-agnostic approval gates** | Side-effecting tool calls pause for human approval — CLI, local web, or webhook. |
 | 🧠 **Memory you own** | Git-native markdown/YAML on your disk; episodic state in your SQLite. |
 | 📡 **OpenTelemetry GenAI** | Emits `gen_ai.*` spans to *your* backend (Grafana/SigNoz/Datadog/Langfuse). |
