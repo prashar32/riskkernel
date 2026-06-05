@@ -98,11 +98,10 @@ riskkernel serve     # start the daemon (reads .env)
 ```
 
 (or `make build` from a clone). Deeper control (loops, checkpoints, approval
-gates) is the Python SDK — install it from source (PyPI publish is on the
-roadmap):
+gates) is the Python SDK:
 
 ```bash
-pip install "git+https://github.com/prashar32/riskkernel.git#subdirectory=sdks/python"
+pip install riskkernel
 ```
 
 See [`sdks/python`](sdks/python). Trace every run in your own backend:
