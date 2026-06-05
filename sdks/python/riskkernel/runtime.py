@@ -157,6 +157,33 @@ class Runtime:
         finally:
             _current_run.reset(token)
 
+    @contextmanager
+    def resume_run(self, run_id: str):
+        """Attach to an existing governed run by id — the resume path after a crash.
+
+        Unlike governed_run, this neither creates nor cancels the run: the daemon
+        reloads non-terminal runs on restart with the budget and usage they had
+        already spent, so enforcement continues without re-spending. Fetch
+        ``run.latest_checkpoint()`` to pick your work back up where it left off::
+
+            with rt.resume_run(run_id) as run:
+                cp = run.latest_checkpoint()
+                start = cp["payload"]["cursor"] if cp else 0
+                for i in range(start, total):
+                    run.step()                       # counts against the SAME budget
+                    ...
+                    run.checkpoint("step", {"cursor": i + 1})
+
+        Raises APIError(404) if the run id is unknown.
+        """
+        data = self.client.get_run(run_id)
+        run = Run(self.client, data, self._poll, self._timeout)
+        token = _current_run.set(run)
+        try:
+            yield run
+        finally:
+            _current_run.reset(token)
+
 
 # Module-level default runtime, configured from the environment, for the
 # decorator/convenience API.

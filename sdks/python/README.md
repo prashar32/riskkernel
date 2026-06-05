@@ -36,6 +36,25 @@ with rt.governed_run(name="research",
 When the governor halts the run (token / dollar / loop / time budget), the next
 `run.step()` — or a proxied model call — raises `rk.BudgetExceeded`.
 
+## Resume after a crash
+
+The daemon reloads non-terminal runs on restart with the budget and usage they had
+already spent, so a `SIGKILL`'d run keeps enforcing without re-spending. Reattach to
+it by id with `resume_run` and pick your work back up from the last checkpoint:
+
+```python
+with rt.resume_run(run_id) as run:          # attaches; never creates or cancels
+    cp = run.latest_checkpoint()            # the state you saved before the crash
+    start = cp["payload"]["cursor"] if cp else 0
+    for i in range(start, total):           # skip the steps you already paid for
+        run.step()                          # counts against the SAME budget
+        # ... your work ...
+        run.checkpoint("step", {"cursor": i + 1})
+```
+
+The run resumes against whatever budget it had left, so it can't overspend by
+restarting — `run.step()` still raises `rk.BudgetExceeded` at the original ceiling.
+
 ## Human-in-the-loop tools
 
 Gate side-effecting tools on human approval (the daemon's policy decides what needs

@@ -9,6 +9,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+### Added
+- **SDK: resume a run after a crash.** `Runtime.resume_run(run_id)` attaches to an
+  existing governed run (it neither creates a new run nor cancels on error), so a
+  Python agent can pick its work back up from the last checkpoint after a `SIGKILL`.
+  The run keeps its server-side budget and already-spent usage, so it can't
+  overspend by restarting. See the [SDK README](sdks/python/README.md#resume-after-a-crash).
+
 ## [0.2.0] - 2026-06-04
 
 A frictionless-adoption release: a one-line CLI install, three runnable key-free
