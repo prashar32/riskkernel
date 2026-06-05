@@ -1,0 +1,48 @@
+name: Publish Python SDK
+
+# Publishes the `riskkernel` SDK to PyPI on every version tag, so the install is the
+# clean, ordinary `pip install riskkernel` — no git URL, no #subdirectory.
+#
+# Auth is PyPI Trusted Publishing (OIDC): NO API token or password is stored
+# anywhere. One-time setup on PyPI (https://docs.pypi.org/trusted-publishers/):
+#   add a "pending publisher" for project `riskkernel` →
+#     Owner: prashar32   Repository: riskkernel
+#     Workflow: python-publish.yml   Environment: (leave blank)
+# PyPI claims the name on the first publish. The version in sdks/python/pyproject.toml
+# must match the tag (the release checklist bumps it).
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build & publish riskkernel to PyPI
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/python
+    permissions:
+      id-token: write # OIDC for PyPI trusted publishing — no stored secret
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # Don't publish a broken SDK: the suite is stdlib-only, no install needed.
+      - name: Test
+        run: python -m unittest discover -s tests -t . -v
+
+      - name: Build sdist + wheel
+        run: |
+          python -m pip install --upgrade build
+          python -m build
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdks/python/dist/
+          skip-existing: true
