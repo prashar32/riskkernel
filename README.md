@@ -93,7 +93,8 @@ needed — and run it:
 
 ```bash
 go install github.com/prashar32/riskkernel/cmd/riskkernel@latest
-riskkernel serve
+riskkernel init      # scaffold a .env + a runnable example in the current dir
+riskkernel serve     # start the daemon (reads .env)
 ```
 
 (or `make build` from a clone). Deeper control (loops, checkpoints, approval

@@ -2,6 +2,7 @@
 //
 // Usage:
 //
+//	riskkernel init [dir]       Scaffold a .env + runnable example to get started.
 //	riskkernel serve            Run the governance daemon (default port 7070).
 //	riskkernel chat "<prompt>"  One-shot model call — proves the provider path.
 //	riskkernel version          Print build identity.
@@ -36,6 +37,8 @@ func main() {
 
 	var err error
 	switch cmd {
+	case "init":
+		err = runInit(args)
 	case "serve":
 		err = runServe(args)
 	case "chat":
@@ -70,6 +73,7 @@ func usage() {
 	fmt.Fprint(os.Stderr, `riskkernel — the risk engine for your AI agents
 
 Usage:
+  riskkernel init [dir]         Scaffold a .env + runnable example to get started
   riskkernel serve              Run the governance daemon (default :7070)
   riskkernel chat "<prompt>"    One-shot model call (proves the provider path)
   riskkernel runs list          List persisted governed runs
