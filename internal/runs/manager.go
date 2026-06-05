@@ -325,7 +325,7 @@ func (m *Manager) Reload(ctx context.Context) (int, error) {
 		if _, ok := m.runs[rec.ID]; ok {
 			continue
 		}
-		m.runs[rec.ID] = m.reloadRun(rec)
+		m.runs[rec.ID] = m.reloadRun(ctx, rec)
 		n++
 	}
 	return n, nil
@@ -333,7 +333,13 @@ func (m *Manager) Reload(ctx context.Context) (int, error) {
 
 // reloadRun reconstructs a live Run from a persisted record, seeding the governor
 // with the run's prior usage so budget enforcement continues across the restart.
-func (m *Manager) reloadRun(rec storage.RunRecord) *Run {
+//
+// It resumes from the last DURABLE checkpoint rather than the live run row. A step
+// that was counted (BeginStep persists the run row) but whose work crashed before
+// its checkpoint leaves the row one step ahead of the last consistent snapshot;
+// restoring from the checkpoint rolls that partial step back, so the resumed agent
+// re-attempts it exactly once — no double-count of the loop or dollar budget.
+func (m *Manager) reloadRun(ctx context.Context, rec storage.RunRecord) *Run {
 	budget := governor.Budget{
 		Tokens: rec.BudgetTokens, Dollars: rec.BudgetDollars,
 		Loops: rec.BudgetLoops, Seconds: rec.BudgetSeconds,
@@ -344,7 +350,17 @@ func (m *Manager) reloadRun(rec storage.RunRecord) *Run {
 		Dollars:          rec.UsageDollars,
 		Loops:            rec.UsageLoops,
 	}
-	return &Run{
+	rolledBack := false
+	if cp, err := m.store.LatestCheckpoint(ctx, rec.ID); err == nil && cp.UsageLoops < rec.UsageLoops {
+		usage = governor.Usage{
+			PromptTokens:     cp.UsagePromptTokens,
+			CompletionTokens: cp.UsageCompletionTokens,
+			Dollars:          cp.UsageDollars,
+			Loops:            cp.UsageLoops,
+		}
+		rolledBack = true
+	}
+	r := &Run{
 		ID:        rec.ID,
 		Name:      rec.Name,
 		Budget:    budget,
@@ -354,6 +370,12 @@ func (m *Manager) reloadRun(rec storage.RunRecord) *Run {
 		createdAt: rec.CreatedAt,
 		updatedAt: rec.UpdatedAt,
 	}
+	if rolledBack {
+		// Make the persisted row agree with the rolled-back governor, so
+		// `runs list` / GET don't keep showing the discarded partial step.
+		m.persistRun(r)
+	}
+	return r
 }
 
 // Checkpoint records a crash-resumable checkpoint for a run with an opaque
