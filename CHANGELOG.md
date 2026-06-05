@@ -15,6 +15,10 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   Python agent can pick its work back up from the last checkpoint after a `SIGKILL`.
   The run keeps its server-side budget and already-spent usage, so it can't
   overspend by restarting. See the [SDK README](sdks/python/README.md#resume-after-a-crash).
+- **`examples/kill-9-resume`** — the flagship crash-resume demo. A checkpointing
+  agent whose daemon is `kill -9`'d mid-run resumes from its last checkpoint and
+  finishes without re-spending; `./demo.sh` scripts the whole crash-and-recover and
+  proves the loop counter doesn't double. Key-free.
 
 ## [0.2.0] - 2026-06-04
 

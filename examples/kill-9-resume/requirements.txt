@@ -1,0 +1,6 @@
+# The only dependency is the RiskKernel Python SDK (stdlib-only). It isn't on PyPI
+# yet, so it's installed from source. resume_run() needs SDK >= 0.2.0.
+riskkernel @ git+https://github.com/prashar32/riskkernel.git#subdirectory=sdks/python
+
+# Working inside a clone and want your local SDK instead? From THIS directory:
+#     pip install ../../sdks/python
