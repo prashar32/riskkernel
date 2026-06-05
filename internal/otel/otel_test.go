@@ -95,6 +95,31 @@ func TestRecordCall_HaltAttribute(t *testing.T) {
 	}
 }
 
+func TestRecordToolCall_Attributes(t *testing.T) {
+	tr, sr := newRecording()
+	tr.RecordToolCall(context.Background(), ToolCall{
+		RunID: "r1", StepIndex: 3, Tool: "write_file", SideEffect: "tool", Status: "denied",
+	})
+	spans := sr.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("got %d spans, want 1", len(spans))
+	}
+	s := spans[0]
+	if s.Name() != "execute_tool write_file" {
+		t.Errorf("span name = %q", s.Name())
+	}
+	a := attrMap(s.Attributes())
+	if a[attrGenAIOperation].AsString() != "execute_tool" || a[attrGenAIToolName].AsString() != "write_file" {
+		t.Errorf("operation/tool = %v / %v", a[attrGenAIOperation], a[attrGenAIToolName])
+	}
+	if a[attrRunID].AsString() != "r1" || a[attrStepIndex].AsInt64() != 3 {
+		t.Errorf("run/step = %v / %v", a[attrRunID], a[attrStepIndex])
+	}
+	if a[attrToolStatus].AsString() != "denied" || a[attrToolSideEffect].AsString() != "tool" {
+		t.Errorf("status/side_effect = %v / %v", a[attrToolStatus], a[attrToolSideEffect])
+	}
+}
+
 func TestDisabled_NoOp(t *testing.T) {
 	d := Disabled()
 	if d.Enabled() {

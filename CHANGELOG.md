@@ -9,6 +9,15 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+### Added
+- **Tool governance shows up in your traces.** Every governed MCP `tools/call` now
+  emits an OpenTelemetry span (`execute_tool {tool}`) alongside the model-call spans,
+  carrying `gen_ai.tool.name`, `riskkernel.tool.side_effect`, and
+  `riskkernel.tool.status` (`approved`, `blocked`, `denied`, or `timeout`). Allowlist
+  blocks and approval denials are now visible in whatever OTLP backend you already
+  run — a refused call is marked with an error span status so it stands out. See
+  [`api/v1/otel-genai.md`](api/v1/otel-genai.md) and [`examples/otel`](examples/otel).
+
 ## [0.3.0] - 2026-06-06
 
 The crash-resume moat, proven and polished: a real `kill -9` → resume demo, the

@@ -16,8 +16,11 @@ import (
 
 	"github.com/prashar32/riskkernel/internal/approval"
 	"github.com/prashar32/riskkernel/internal/governor"
+	"github.com/prashar32/riskkernel/internal/otel"
 	"github.com/prashar32/riskkernel/internal/runs"
 	"github.com/prashar32/riskkernel/internal/storage"
+
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
 
 type discard struct{}
@@ -46,7 +49,7 @@ func newTestGateway(t *testing.T, allowlist, readonly []string) (*Gateway, *int3
 	gate := approval.NewGate(store, approval.Policy{DefaultSafe: true}, nil, log)
 	mgr := runs.NewManager(governor.Budget{}).WithStore(store, log)
 
-	g := New(upstream.URL, allowlist, readonly, gate, mgr, store, 5*time.Second, log)
+	g := New(upstream.URL, allowlist, readonly, gate, mgr, store, otel.Disabled(), 5*time.Second, log)
 	return g, &hits
 }
 
@@ -114,7 +117,7 @@ func TestAllowlistBlockIsAudited(t *testing.T) {
 	gate := approval.NewGate(spy, approval.Policy{DefaultSafe: true}, nil, log)
 	mgr := runs.NewManager(governor.Budget{}).WithStore(spy, log)
 	// Upstream is intentionally unreachable: a blocked tool must never be forwarded.
-	g := New("http://127.0.0.1:1", []string{"safe_*"}, nil, gate, mgr, spy, time.Second, log)
+	g := New("http://127.0.0.1:1", []string{"safe_*"}, nil, gate, mgr, spy, otel.Disabled(), time.Second, log)
 
 	w := httptest.NewRecorder()
 	g.handle(w, mcpReq(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"danger_rm","arguments":{"path":"/etc"}}}`))
@@ -206,4 +209,39 @@ func waitPending(t *testing.T, g *Gateway) string {
 	}
 	t.Fatal("pending approval never appeared")
 	return ""
+}
+
+func TestToolCallEmitsSpan(t *testing.T) {
+	// A governed tools/call must surface as an OTLP span with its outcome, so tool
+	// governance is visible in the user's backend next to model calls.
+	sr := tracetest.NewSpanRecorder()
+	store, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "span.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	log := slog.New(slog.NewTextHandler(discard{}, nil))
+	gate := approval.NewGate(store, approval.Policy{DefaultSafe: true}, nil, log)
+	mgr := runs.NewManager(governor.Budget{}).WithStore(store, log)
+	tracer := otel.NewWithProcessor(sr, "test")
+	// A blocked tool never forwards, so the upstream can be unreachable.
+	g := New("http://127.0.0.1:1", []string{"safe_*"}, nil, gate, mgr, store, tracer, time.Second, log)
+
+	w := httptest.NewRecorder()
+	g.handle(w, mcpReq(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"danger_rm"}}`))
+
+	spans := sr.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("got %d spans, want 1", len(spans))
+	}
+	if spans[0].Name() != "execute_tool danger_rm" {
+		t.Errorf("span name = %q", spans[0].Name())
+	}
+	a := map[string]string{}
+	for _, kv := range spans[0].Attributes() {
+		a[string(kv.Key)] = kv.Value.Emit()
+	}
+	if a["gen_ai.tool.name"] != "danger_rm" || a["riskkernel.tool.status"] != "blocked" {
+		t.Fatalf("tool span attrs = %v", a)
+	}
 }

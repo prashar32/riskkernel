@@ -49,6 +49,10 @@ const (
 	attrBudgetDolLimit  = "riskkernel.budget.dollars.limit"
 	attrBudgetDolRemain = "riskkernel.budget.dollars.remaining"
 	attrHaltReason      = "riskkernel.halt.reason"
+
+	attrGenAIToolName  = "gen_ai.tool.name"
+	attrToolSideEffect = "riskkernel.tool.side_effect"
+	attrToolStatus     = "riskkernel.tool.status" // approved | blocked | denied | timeout
 )
 
 // Tracer emits governed-call spans. The zero value and Disabled() are safe no-ops.
@@ -230,6 +234,47 @@ func (t *Tracer) RecordCall(ctx context.Context, c Call) {
 	}
 
 	span.End(trace.WithTimestamp(orNow(c.End)))
+}
+
+// ToolCall is a governed MCP tool call to record as a span.
+type ToolCall struct {
+	RunID      string
+	StepIndex  int32
+	Tool       string
+	SideEffect string // "" for read-only
+	Status     string // approved | blocked | denied | timeout
+	Start      time.Time
+	End        time.Time
+}
+
+// RecordToolCall emits a span for one governed MCP tool call, so tool governance —
+// allowlist blocks, approval denials, approved calls — is visible alongside model
+// calls in the user's OTLP backend. No-op when disabled.
+func (t *Tracer) RecordToolCall(ctx context.Context, tc ToolCall) {
+	if !t.Enabled() {
+		return
+	}
+	_, span := t.tracer.Start(ctx, "execute_tool "+tc.Tool,
+		trace.WithSpanKind(trace.SpanKindInternal),
+		trace.WithTimestamp(orNow(tc.Start)),
+	)
+	attrs := []attribute.KeyValue{
+		attribute.String(attrGenAIOperation, "execute_tool"),
+		attribute.String(attrGenAIToolName, tc.Tool),
+		attribute.String(attrRunID, tc.RunID),
+		attribute.Int(attrStepIndex, int(tc.StepIndex)),
+		attribute.String(attrToolStatus, tc.Status),
+	}
+	if tc.SideEffect != "" {
+		attrs = append(attrs, attribute.String(attrToolSideEffect, tc.SideEffect))
+	}
+	span.SetAttributes(attrs...)
+	// A refused call (blocked / denied / timeout) is an error status so it stands
+	// out in the trace UI.
+	if tc.Status != "approved" {
+		span.SetStatus(codes.Error, "tool "+tc.Status)
+	}
+	span.End(trace.WithTimestamp(orNow(tc.End)))
 }
 
 func orNow(t time.Time) time.Time {

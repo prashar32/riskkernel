@@ -21,6 +21,7 @@ import (
 
 	"github.com/prashar32/riskkernel/internal/approval"
 	"github.com/prashar32/riskkernel/internal/id"
+	"github.com/prashar32/riskkernel/internal/otel"
 	"github.com/prashar32/riskkernel/internal/runs"
 	"github.com/prashar32/riskkernel/internal/storage"
 )
@@ -40,13 +41,14 @@ type Gateway struct {
 	gate            *approval.Gate
 	runs            *runs.Manager
 	store           storage.Store
+	tracer          *otel.Tracer
 	log             *slog.Logger
 	approvalTimeout time.Duration
 }
 
 // New constructs an MCP gateway. upstream must be non-empty.
 func New(upstream string, allowlist, readonly []string, gate *approval.Gate,
-	mgr *runs.Manager, store storage.Store, approvalTimeout time.Duration, log *slog.Logger) *Gateway {
+	mgr *runs.Manager, store storage.Store, tracer *otel.Tracer, approvalTimeout time.Duration, log *slog.Logger) *Gateway {
 	ro := make(map[string]bool, len(readonly))
 	for _, t := range readonly {
 		ro[t] = true
@@ -62,6 +64,7 @@ func New(upstream string, allowlist, readonly []string, gate *approval.Gate,
 		gate:            gate,
 		runs:            mgr,
 		store:           store,
+		tracer:          tracer,
 		log:             log,
 		approvalTimeout: approvalTimeout,
 	}
@@ -89,6 +92,7 @@ type toolsCallParams struct {
 }
 
 func (g *Gateway) handle(w http.ResponseWriter, r *http.Request) {
+	start := time.Now()
 	body, err := io.ReadAll(io.LimitReader(r.Body, 10<<20))
 	if err != nil {
 		http.Error(w, "read error", http.StatusBadRequest)
@@ -113,7 +117,7 @@ func (g *Gateway) handle(w http.ResponseWriter, r *http.Request) {
 	// tool call is part of the audit trail, not a silent drop.
 	if !g.allowed(tool) {
 		g.log.Warn("mcp tool blocked by allowlist", "tool", tool)
-		g.recordToolCall(run.ID, stepIdx, tool, "", params.Arguments, "blocked")
+		g.recordToolCall(r.Context(), start, run.ID, stepIdx, tool, "", params.Arguments, "blocked")
 		writeRPCError(w, req.ID, -32001, "tool not allowed by policy: "+tool)
 		return
 	}
@@ -129,19 +133,19 @@ func (g *Gateway) handle(w http.ResponseWriter, r *http.Request) {
 			SideEffect: sideEffect, Arguments: params.Arguments,
 		})
 		if aerr != nil {
-			g.recordToolCall(run.ID, stepIdx, tool, sideEffect, params.Arguments, "timeout")
+			g.recordToolCall(r.Context(), start, run.ID, stepIdx, tool, sideEffect, params.Arguments, "timeout")
 			writeRPCError(w, req.ID, -32002, "approval timed out or run cancelled for tool: "+tool)
 			return
 		}
 		if !decision.Approved {
-			g.recordToolCall(run.ID, stepIdx, tool, sideEffect, params.Arguments, "denied")
+			g.recordToolCall(r.Context(), start, run.ID, stepIdx, tool, sideEffect, params.Arguments, "denied")
 			writeRPCError(w, req.ID, -32003, "approval denied for tool: "+tool)
 			return
 		}
 	}
 
 	// 3) Forward to the real MCP server and record the (approved) call.
-	g.recordToolCall(run.ID, stepIdx, tool, sideEffect, params.Arguments, "approved")
+	g.recordToolCall(r.Context(), start, run.ID, stepIdx, tool, sideEffect, params.Arguments, "approved")
 	g.forward(w, r, body)
 }
 
@@ -177,7 +181,13 @@ func (g *Gateway) resolveRun(r *http.Request) *runs.Run {
 	return g.runs.Create(runs.CreateOptions{Name: "mcp"})
 }
 
-func (g *Gateway) recordToolCall(runID string, step int32, tool, sideEffect string, args map[string]any, status string) {
+func (g *Gateway) recordToolCall(ctx context.Context, start time.Time, runID string, step int32, tool, sideEffect string, args map[string]any, status string) {
+	// Emit an OTLP span so the call (and its governance outcome) is visible in the
+	// user's observability backend, next to the model-call spans.
+	g.tracer.RecordToolCall(ctx, otel.ToolCall{
+		RunID: runID, StepIndex: step, Tool: tool, SideEffect: sideEffect,
+		Status: status, Start: start, End: time.Now(),
+	})
 	if g.store == nil {
 		return
 	}
