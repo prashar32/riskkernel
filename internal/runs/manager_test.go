@@ -170,6 +170,67 @@ func TestManager_ReloadSkipsTerminalRuns(t *testing.T) {
 	}
 }
 
+func TestManager_ReloadRollsBackPartialStep(t *testing.T) {
+	// A crash in the middle of a step (the loop was counted via BeginStep, but the
+	// step's checkpoint never landed) must not double-count that step on resume.
+	store, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "partial.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	noop := slog.New(slog.NewTextHandler(noopWriter{}, nil))
+	ctx := context.Background()
+
+	// Process A: 2 steps, each checkpointed, then a 3rd step STARTS (row → loops 3)
+	// but crashes before its checkpoint (last checkpoint stays at loops 2).
+	mA := NewManager(governor.Budget{Loops: 5}).WithStore(store, noop)
+	rA := mA.Create(CreateOptions{ID: "partial", Name: "p"})
+	for i := 1; i <= 2; i++ {
+		if _, err := rA.BeginStep(); err != nil {
+			t.Fatalf("step %d: %v", i, err)
+		}
+		if err := mA.Checkpoint("partial", "", map[string]any{"cursor": i}); err != nil {
+			t.Fatalf("checkpoint %d: %v", i, err)
+		}
+	}
+	if _, err := rA.BeginStep(); err != nil { // the partial 3rd step — never checkpointed
+		t.Fatalf("partial step: %v", err)
+	}
+
+	// Sanity: the run row is one step ahead (3) of the last checkpoint (2).
+	got, _ := store.GetRun(ctx, "partial")
+	cp, _ := store.LatestCheckpoint(ctx, "partial")
+	if got.UsageLoops != 3 || cp.UsageLoops != 2 {
+		t.Fatalf("row loops=%d, checkpoint loops=%d; want 3 and 2", got.UsageLoops, cp.UsageLoops)
+	}
+
+	// --- crash + reload in a fresh manager ---
+	mB := NewManager(governor.Budget{}).WithStore(store, noop)
+	if n, err := mB.Reload(ctx); err != nil || n != 1 {
+		t.Fatalf("Reload = %d, %v; want 1", n, err)
+	}
+	rB, ok := mB.Get("partial")
+	if !ok {
+		t.Fatal("run not reloaded")
+	}
+
+	// The partial step is rolled back: the governor resumes at loops 2, not 3 …
+	if v := rB.View(); v.Usage.Loops != 2 {
+		t.Fatalf("resumed loops = %d, want 2 (partial step rolled back)", v.Usage.Loops)
+	}
+	// … and the persisted row was corrected to match.
+	if got, _ := store.GetRun(ctx, "partial"); got.UsageLoops != 2 {
+		t.Fatalf("persisted loops after reload = %d, want 2", got.UsageLoops)
+	}
+	// Re-attempting the 3rd step counts it exactly once → loops 3, not 4.
+	if _, err := rB.BeginStep(); err != nil {
+		t.Fatalf("re-attempt: %v", err)
+	}
+	if v := rB.View(); v.Usage.Loops != 3 {
+		t.Fatalf("after re-attempt loops = %d, want 3 (exactly once)", v.Usage.Loops)
+	}
+}
+
 func TestManager_HaltPersistsStatus(t *testing.T) {
 	store, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "halt.db"))
 	if err != nil {

@@ -20,6 +20,14 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   finishes without re-spending; `./demo.sh` scripts the whole crash-and-recover and
   proves the loop counter doesn't double. Key-free.
 
+### Fixed
+- **Resume is exact-once across a mid-step crash.** If the daemon died after a step
+  was counted (`BeginStep`) but before that step's checkpoint, the run row was left
+  one step ahead of the last durable snapshot — so resume re-attempted the step and
+  the loop budget counted it twice. The daemon now reloads each run from its last
+  checkpoint, rolling that partial step back so it's counted exactly once. (The
+  dollar budget was already exact — a partial step records no cost.)
+
 ## [0.2.0] - 2026-06-04
 
 A frictionless-adoption release: a one-line CLI install, three runnable key-free
