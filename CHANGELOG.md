@@ -10,6 +10,10 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **`riskkernel init`** — scaffolds a working starting point in one command: a `.env`
+  (provider key, default budget, the data dir where runs and crash-resume checkpoints
+  live) and a runnable, key-free `quickstart.py` (a governed loop the budget stops),
+  then prints the next steps. Never overwrites existing files.
 - **SDK: resume a run after a crash.** `Runtime.resume_run(run_id)` attaches to an
   existing governed run (it neither creates a new run nor cancels on error), so a
   Python agent can pick its work back up from the last checkpoint after a `SIGKILL`.
