@@ -1,12 +1,8 @@
-# This LangChain example needs two things: langchain-core (the callback machinery
-# the adapter hooks into) and the RiskKernel Python SDK. The SDK isn't on PyPI yet,
-# so it's installed from source; its core is stdlib-only. The git+https reference
-# works from ANY directory (a bare relative path would resolve against your CWD).
-#
-# Tested with langchain-core 1.4.0; the adapter also supports the older
-# langchain.callbacks.base import path.
+# This LangChain example needs langchain-core (the callback machinery the adapter
+# hooks into) and the RiskKernel Python SDK (stdlib-only). Tested with langchain-core
+# 1.4.0; the adapter also supports the older langchain.callbacks.base import path.
 langchain-core>=0.2
-riskkernel @ git+https://github.com/prashar32/riskkernel.git#subdirectory=sdks/python
+riskkernel
 
 # Working inside a clone and want your local SDK instead? From THIS directory:
 #     pip install ../../sdks/python

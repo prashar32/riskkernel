@@ -55,7 +55,7 @@ func runInit(args []string) error {
 Next:
   1. (optional) put your ANTHROPIC_API_KEY in .env — model calls need it; the loop demo doesn't
   2. riskkernel serve                 # start the governance daemon (reads .env)
-  3. pip install "git+https://github.com/prashar32/riskkernel.git#subdirectory=sdks/python"
+  3. pip install riskkernel
   4. python quickstart.py             # watch the governor stop a runaway loop
 `)
 	return nil

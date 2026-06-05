@@ -9,7 +9,17 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-06
+
+The crash-resume moat, proven and polished: a real `kill -9` → resume demo, the
+`resume_run` SDK entry point, exact-once budgets across a mid-step crash, and a
+crash-resume guide — plus a one-command `riskkernel init` on-ramp and a clean
+`pip install riskkernel`. No breaking API changes; forward-compatible with v0.2.x
+state.
+
 ### Added
+- **The SDK is on PyPI** — install it with the ordinary `pip install riskkernel`
+  (no git URL, no `#subdirectory`). Published on release via PyPI Trusted Publishing.
 - **`riskkernel init`** — scaffolds a working starting point in one command: a `.env`
   (provider key, default budget, the data dir where runs and crash-resume checkpoints
   live) and a runnable, key-free `quickstart.py` (a governed loop the budget stops),
@@ -215,7 +225,8 @@ and a memory you own, in one self-hosted binary. Three integration surfaces
   (keyless) on each `v*` tag; GoReleaser binaries + checksums + GitHub release;
   `govulncheck` + CodeQL in CI. One-line `docker run` quickstart.
 
-[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/prashar32/riskkernel/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/prashar32/riskkernel/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/prashar32/riskkernel/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/prashar32/riskkernel/compare/v0.1.0...v0.1.1
