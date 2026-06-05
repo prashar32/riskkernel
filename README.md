@@ -36,7 +36,7 @@ It is **not** another gateway (LiteLLM/Portkey own routing), **not** another obs
 | 💸 **Hard cost ceiling per run** | A run that hits its dollar/token budget is killed cleanly, state persisted. Safe defaults out of the box ([the budget contract](docs/BUDGETS.md)). |
 | 🔁 **Hard loop-iteration cap** | No more infinite agent loops. |
 | ⏱️ **Hard wall-clock budget** | Runs that exceed their time budget halt. |
-| 💾 **Crash-resumable checkpoints** | `SIGKILL` a run; `riskkernel runs resume <id>` picks up from the last step. |
+| 💾 **Crash-resumable checkpoints** | `kill -9` the daemon mid-run; it reloads with the budget already spent and resumes from the last checkpoint — without re-spending ([the flagship demo](examples/kill-9-resume)). |
 | ✋ **Framework-agnostic approval gates** | Side-effecting tool calls pause for human approval — CLI, local web, or webhook. |
 | 🧠 **Memory you own** | Git-native markdown/YAML on your disk; episodic state in your SQLite. |
 | 📡 **OpenTelemetry GenAI** | Emits `gen_ai.*` spans to *your* backend (Grafana/SigNoz/Datadog/Langfuse). |
@@ -110,6 +110,10 @@ See [`sdks/python`](sdks/python). Trace every run in your own backend:
 Want to *see* the headline feature? [`examples/codebase-qa`](examples/codebase-qa)
 is a runnable agent that loops over a codebase until the governor kills it on its
 loop/dollar budget — the deterministic kill, end to end, with a real model.
+
+And the moat: [`examples/kill-9-resume`](examples/kill-9-resume) `kill -9`s the
+daemon mid-run and resumes without re-spending — `./demo.sh` scripts the whole
+crash-and-recover and proves the counter doesn't double, key-free.
 
 Brand new to the SDK? [`examples/wrap-your-agent`](examples/wrap-your-agent) is the
 no-key, two-minute version — a generic Python loop the governor caps at a loop
