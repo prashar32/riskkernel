@@ -22,9 +22,15 @@ permissions:
 
 jobs:
   review:
-    # Same-repo PRs only. On a fork PR head.repo.full_name differs from the repo,
-    # the secret is absent, and this job would always fail — so skip it there.
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    # Same-repo, human-authored PRs only. On a fork PR head.repo.full_name differs
+    # from the repo; on a Dependabot PR the run gets a restricted token with no
+    # access to repo secrets. In both cases CLAUDE_CODE_OAUTH_TOKEN is absent and
+    # this job could only fail — so skip it (a clean skip, not a red X). Both are
+    # instead reviewed on demand: comment "@claude" (claude.yml runs in the base-repo
+    # context where the secret IS available).
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6

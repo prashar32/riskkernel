@@ -13,3 +13,8 @@ updates:
       interval: weekly
     commit-message:
       prefix: "chore(ci)"
+    # Batch CI Action bumps into one weekly PR instead of one per action — they're
+    # low-risk and easier to review and merge together.
+    groups:
+      github-actions:
+        patterns: ["*"]
