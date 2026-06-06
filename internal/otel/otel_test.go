@@ -3,10 +3,17 @@ package otel
 import (
 	"context"
 	"errors"
+	"io"
+	"log/slog"
+	"net/http"
+	"net/http/httptest"
+	"sync"
 	"testing"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+
+	"github.com/prashar32/riskkernel/internal/config"
 )
 
 // newRecording builds a Tracer backed by an in-memory span recorder.
@@ -117,6 +124,39 @@ func TestRecordToolCall_Attributes(t *testing.T) {
 	}
 	if a[attrToolStatus].AsString() != "denied" || a[attrToolSideEffect].AsString() != "tool" {
 		t.Errorf("status/side_effect = %v / %v", a[attrToolStatus], a[attrToolSideEffect])
+	}
+}
+
+func TestExport_SendsConfiguredHeaders(t *testing.T) {
+	// Prove the auth header reaches the OTLP endpoint on the wire — this is what
+	// lets RiskKernel export to a backend that requires authentication (Honeycomb,
+	// Grafana Cloud, a hosted dashboard).
+	var mu sync.Mutex
+	var gotAuth string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		gotAuth = r.Header.Get("Authorization")
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	tr, err := New(context.Background(), config.OTelConfig{
+		Endpoint: srv.URL, Protocol: "http", Insecure: true, ServiceName: "test",
+		Headers: map[string]string{"authorization": "Bearer xyz"},
+	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	tr.RecordCall(context.Background(), Call{RunID: "r1", Operation: "chat", RequestModel: "m", PromptTokens: 1, OutputTokens: 1})
+	if err := tr.Shutdown(context.Background()); err != nil { // flushes the batch
+		t.Fatalf("Shutdown: %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if gotAuth != "Bearer xyz" {
+		t.Fatalf("Authorization header on the wire = %q, want %q", gotAuth, "Bearer xyz")
 	}
 }
 
