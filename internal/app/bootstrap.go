@@ -169,12 +169,12 @@ func BuildRegistry(cfg *config.Config) (*provider.Registry, error) {
 	// key is present; Bedrock/Ollama are stubs config can name before they're built
 	// out.
 	ps := []provider.Provider{
-		provider.NewAnthropic(cfg.AnthropicAPIKey),
+		provider.NewAnthropic(cfg.AnthropicAPIKey).WithBaseURL(cfg.AnthropicBaseURL),
 		provider.NewBedrock(),
 		provider.NewOllama("http://localhost:11434"),
 	}
 	if cfg.OpenAIAPIKey != "" {
-		ps = append(ps, provider.NewOpenAI(cfg.OpenAIAPIKey))
+		ps = append(ps, provider.NewOpenAI(cfg.OpenAIAPIKey).WithBaseURL(cfg.OpenAIBaseURL))
 	}
 
 	return provider.NewRegistry(cfg.DefaultProvider, ps...)

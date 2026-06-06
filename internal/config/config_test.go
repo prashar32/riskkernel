@@ -206,6 +206,21 @@ func TestLoad_OTLPHeaders(t *testing.T) {
 	}
 }
 
+func TestLoad_ProviderBaseURLs(t *testing.T) {
+	withCleanEnv(t)
+	chdirTemp(t)
+	t.Setenv("RISKKERNEL_ANTHROPIC_BASE_URL", "http://localhost:9001")
+	t.Setenv("RISKKERNEL_OPENAI_BASE_URL", "http://localhost:9002")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.AnthropicBaseURL != "http://localhost:9001" || cfg.OpenAIBaseURL != "http://localhost:9002" {
+		t.Errorf("base URLs = %q / %q", cfg.AnthropicBaseURL, cfg.OpenAIBaseURL)
+	}
+}
+
 // --- helpers ---
 
 // withCleanEnv clears the env vars Load reads so tests are hermetic. t.Setenv
@@ -218,6 +233,7 @@ func withCleanEnv(t *testing.T) {
 		"RISKKERNEL_DEFAULT_LOOPS", "RISKKERNEL_DEFAULT_SECONDS",
 		"OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
 		"OTEL_EXPORTER_OTLP_HEADERS", "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
+		"RISKKERNEL_ANTHROPIC_BASE_URL", "RISKKERNEL_OPENAI_BASE_URL",
 	} {
 		t.Setenv(k, "")
 		os.Unsetenv(k)

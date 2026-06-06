@@ -56,6 +56,41 @@ func TestOpenAIChat_Success(t *testing.T) {
 	}
 }
 
+func TestProviderWithBaseURL(t *testing.T) {
+	// Field logic: trailing slash trimmed; empty keeps the default.
+	if got := NewOpenAI("k").WithBaseURL("http://x/").baseURL; got != "http://x" {
+		t.Errorf("OpenAI WithBaseURL trim = %q", got)
+	}
+	if got := NewOpenAI("k").WithBaseURL("").baseURL; got != defaultOpenAIBaseURL {
+		t.Errorf("OpenAI empty override = %q, want default", got)
+	}
+	if got := NewAnthropic("k").WithBaseURL("http://y/").baseURL; got != "http://y" {
+		t.Errorf("Anthropic WithBaseURL trim = %q", got)
+	}
+
+	// End-to-end: a Chat call routes to the overridden base (a mock here), not the
+	// default endpoint — this is what lets the benchmark point at a local provider.
+	var hit bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		hit = true
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"x","model":"gpt-4o","choices":[{"message":{"role":"assistant","content":"ok"},"finish_reason":"stop"}],"usage":{"prompt_tokens":5,"completion_tokens":1,"total_tokens":6}}`))
+	}))
+	defer srv.Close()
+
+	resp, err := NewOpenAI("k").WithBaseURL(srv.URL).Chat(context.Background(),
+		Request{Model: "gpt-4o", Messages: []Message{{Role: RoleUser, Content: "hi"}}})
+	if err != nil {
+		t.Fatalf("Chat via override: %v", err)
+	}
+	if !hit {
+		t.Error("call did not route to the overridden base URL")
+	}
+	if resp.Content != "ok" {
+		t.Errorf("resp = %+v", resp)
+	}
+}
+
 func TestOpenAIChat_APIError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)

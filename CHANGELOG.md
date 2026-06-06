@@ -9,6 +9,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+### Added
+- **Point a provider at a custom upstream.** Set `RISKKERNEL_OPENAI_BASE_URL` or
+  `RISKKERNEL_ANTHROPIC_BASE_URL` to route that provider through an OpenAI-compatible
+  gateway, a corporate proxy, or a local mock (e.g. for benchmarking) instead of its
+  default API endpoint. RiskKernel-namespaced so it never collides with the
+  caller-facing `OPENAI_BASE_URL` used to point an app *at* RiskKernel.
+
 ## [0.4.0] - 2026-06-07
 
 Observability, rounded out: tool-call governance now shows up in your traces, a

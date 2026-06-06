@@ -47,6 +47,14 @@ type Config struct {
 	AnthropicAPIKey string // ANTHROPIC_API_KEY
 	OpenAIAPIKey    string // OPENAI_API_KEY
 
+	// Provider upstream-base overrides — point RiskKernel's provider at a gateway,
+	// a corporate proxy, or a local mock. RiskKernel-namespaced on purpose: the
+	// bare OPENAI_BASE_URL / ANTHROPIC_BASE_URL are what a caller sets to point
+	// *at* RiskKernel, so reusing them here would collide (RiskKernel forwarding to
+	// itself in a shared shell). Empty uses the provider's default endpoint.
+	AnthropicBaseURL string // RISKKERNEL_ANTHROPIC_BASE_URL
+	OpenAIBaseURL    string // RISKKERNEL_OPENAI_BASE_URL
+
 	// DefaultBudget is applied to runs created without an explicit budget — e.g.
 	// proxy calls that supply only a run-id. Any zero field is unlimited. When no
 	// RISKKERNEL_DEFAULT_* variable is set at all, conservative safe defaults are
@@ -178,15 +186,17 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Port:            port,
-		DataDir:         getenvDefault("RISKKERNEL_DATA_DIR", "./data"),
-		APIToken:        os.Getenv("RISKKERNEL_API_TOKEN"),
-		DefaultProvider: getenvDefault("RISKKERNEL_DEFAULT_PROVIDER", "anthropic"),
-		AnthropicAPIKey: os.Getenv("ANTHROPIC_API_KEY"),
-		OpenAIAPIKey:    os.Getenv("OPENAI_API_KEY"),
-		DefaultBudget:   budget,
-		PricingFile:     os.Getenv("RISKKERNEL_PRICING_FILE"),
-		OTel:            loadOTel(),
+		Port:             port,
+		DataDir:          getenvDefault("RISKKERNEL_DATA_DIR", "./data"),
+		APIToken:         os.Getenv("RISKKERNEL_API_TOKEN"),
+		DefaultProvider:  getenvDefault("RISKKERNEL_DEFAULT_PROVIDER", "anthropic"),
+		AnthropicAPIKey:  os.Getenv("ANTHROPIC_API_KEY"),
+		OpenAIAPIKey:     os.Getenv("OPENAI_API_KEY"),
+		AnthropicBaseURL: os.Getenv("RISKKERNEL_ANTHROPIC_BASE_URL"),
+		OpenAIBaseURL:    os.Getenv("RISKKERNEL_OPENAI_BASE_URL"),
+		DefaultBudget:    budget,
+		PricingFile:      os.Getenv("RISKKERNEL_PRICING_FILE"),
+		OTel:             loadOTel(),
 		Approval: ApprovalConfig{
 			DefaultSafe: envBoolDefault("RISKKERNEL_APPROVAL_DEFAULT_SAFE", true),
 			WebhookURL:  os.Getenv("RISKKERNEL_APPROVAL_WEBHOOK"),
