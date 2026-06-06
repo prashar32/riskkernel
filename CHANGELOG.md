@@ -22,6 +22,12 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   spend over time and per run, token burn, budget halts by reason, tool-call outcomes,
   and p95 latency by model. Built from the spans you already emit (Tempo TraceQL
   metrics — no extra instrumentation); `docker compose up`, no import step.
+- **Authenticated OTLP export.** Set the standard `OTEL_EXPORTER_OTLP_HEADERS` (or the
+  traces-specific `OTEL_EXPORTER_OTLP_TRACES_HEADERS`) — a comma-separated list of
+  `key=value` pairs — to send an auth header on every span export, so RiskKernel can
+  feed a backend that requires one (Honeycomb's `x-honeycomb-team`, a `Bearer` token,
+  Grafana Cloud). Header values carry secrets and are never logged. See
+  [`examples/otel`](examples/otel#other-backends).
 
 ## [0.3.0] - 2026-06-06
 

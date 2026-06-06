@@ -133,6 +133,12 @@ type OTelConfig struct {
 	// ServiceName tags exported spans. Read from OTEL_SERVICE_NAME (default
 	// "riskkernel").
 	ServiceName string
+	// Headers are sent on every OTLP export request, used to authenticate to a
+	// backend that requires it (e.g. `authorization=Bearer …`, or Honeycomb's
+	// `x-honeycomb-team`). Read from OTEL_EXPORTER_OTLP_TRACES_HEADERS, then
+	// OTEL_EXPORTER_OTLP_HEADERS, as a comma-separated list of key=value pairs.
+	// Carries secrets — never logged.
+	Headers map[string]string
 }
 
 // BudgetConfig holds raw budget values (no governor dependency here so config
@@ -248,12 +254,43 @@ func loadOTel() OTelConfig {
 	}
 	insecure := strings.EqualFold(os.Getenv("OTEL_EXPORTER_OTLP_INSECURE"), "true") ||
 		strings.HasPrefix(endpoint, "http://")
+	headers := os.Getenv("OTEL_EXPORTER_OTLP_TRACES_HEADERS")
+	if headers == "" {
+		headers = os.Getenv("OTEL_EXPORTER_OTLP_HEADERS")
+	}
 	return OTelConfig{
 		Endpoint:    endpoint,
 		Protocol:    getenvDefault("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc"),
 		Insecure:    insecure,
 		ServiceName: getenvDefault("OTEL_SERVICE_NAME", "riskkernel"),
+		Headers:     parseOTLPHeaders(headers),
 	}
+}
+
+// parseOTLPHeaders parses the OTEL_EXPORTER_OTLP_*_HEADERS format: a comma-separated
+// list of key=value pairs (e.g. "authorization=Bearer abc,x-tenant=42"). Whitespace
+// around each key and value is trimmed; a value may itself contain '=' (only the
+// first is the separator). Values are taken literally (no percent-decoding), which
+// is what real tokens and API keys need. Returns nil for an empty or all-malformed
+// string so callers can treat nil as "no headers".
+func parseOTLPHeaders(s string) map[string]string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	out := make(map[string]string)
+	for _, pair := range strings.Split(s, ",") {
+		k, v, ok := strings.Cut(pair, "=")
+		k = strings.TrimSpace(k)
+		if !ok || k == "" {
+			continue
+		}
+		out[k] = strings.TrimSpace(v)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // loadBudget reads the optional default-budget env vars. When none is set the

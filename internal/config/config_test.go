@@ -148,6 +148,64 @@ func TestLoad_DotEnvDoesNotOverrideRealEnv(t *testing.T) {
 	}
 }
 
+func TestParseOTLPHeaders(t *testing.T) {
+	cases := []struct {
+		in   string
+		want map[string]string
+	}{
+		{"", nil},
+		{"   ", nil},
+		{"noequals", nil},
+		{"authorization=Bearer abc", map[string]string{"authorization": "Bearer abc"}},
+		{"a=1,b=2", map[string]string{"a": "1", "b": "2"}},
+		{"  a = 1 , b = 2 ", map[string]string{"a": "1", "b": "2"}},
+		{"x-honeycomb-team=key123", map[string]string{"x-honeycomb-team": "key123"}},
+		{"token=a=b=c", map[string]string{"token": "a=b=c"}}, // value may contain '='
+		{"=nokey,a=1", map[string]string{"a": "1"}},          // skip empty key
+		{"bad,a=1", map[string]string{"a": "1"}},             // skip malformed pair
+	}
+	for _, c := range cases {
+		got := parseOTLPHeaders(c.in)
+		if len(got) != len(c.want) {
+			t.Errorf("parseOTLPHeaders(%q) = %v, want %v", c.in, got, c.want)
+			continue
+		}
+		for k, v := range c.want {
+			if got[k] != v {
+				t.Errorf("parseOTLPHeaders(%q)[%q] = %q, want %q", c.in, k, got[k], v)
+			}
+		}
+	}
+}
+
+func TestLoad_OTLPHeaders(t *testing.T) {
+	withCleanEnv(t)
+	chdirTemp(t)
+	t.Setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "https://api.honeycomb.io")
+	t.Setenv("OTEL_EXPORTER_OTLP_HEADERS", "x-honeycomb-team=secret-key")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.OTel.Headers["x-honeycomb-team"] != "secret-key" {
+		t.Errorf("headers = %v", cfg.OTel.Headers)
+	}
+
+	// The traces-specific var takes precedence over the general one.
+	t.Setenv("OTEL_EXPORTER_OTLP_TRACES_HEADERS", "authorization=Bearer t1")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.OTel.Headers["authorization"] != "Bearer t1" {
+		t.Errorf("traces headers should win: %v", cfg.OTel.Headers)
+	}
+	if _, ok := cfg.OTel.Headers["x-honeycomb-team"]; ok {
+		t.Errorf("general headers should be replaced, not merged: %v", cfg.OTel.Headers)
+	}
+}
+
 // --- helpers ---
 
 // withCleanEnv clears the env vars Load reads so tests are hermetic. t.Setenv
@@ -158,6 +216,8 @@ func withCleanEnv(t *testing.T) {
 		"RISKKERNEL_DEFAULT_PROVIDER", "ANTHROPIC_API_KEY", "OPENAI_API_KEY",
 		"RISKKERNEL_DEFAULT_TOKENS", "RISKKERNEL_DEFAULT_DOLLARS",
 		"RISKKERNEL_DEFAULT_LOOPS", "RISKKERNEL_DEFAULT_SECONDS",
+		"OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+		"OTEL_EXPORTER_OTLP_HEADERS", "OTEL_EXPORTER_OTLP_TRACES_HEADERS",
 	} {
 		t.Setenv(k, "")
 		os.Unsetenv(k)

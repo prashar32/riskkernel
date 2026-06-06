@@ -116,11 +116,17 @@ func newExporter(ctx context.Context, cfg config.OTelConfig) (*otlptrace.Exporte
 		if cfg.Insecure {
 			opts = append(opts, otlptracehttp.WithInsecure())
 		}
+		if len(cfg.Headers) > 0 {
+			opts = append(opts, otlptracehttp.WithHeaders(cfg.Headers))
+		}
 		return otlptracehttp.New(ctx, opts...)
 	default: // grpc
 		opts := []otlptracegrpc.Option{otlptracegrpc.WithEndpointURL(cfg.Endpoint)}
 		if cfg.Insecure {
 			opts = append(opts, otlptracegrpc.WithInsecure())
+		}
+		if len(cfg.Headers) > 0 {
+			opts = append(opts, otlptracegrpc.WithHeaders(cfg.Headers))
 		}
 		return otlptracegrpc.New(ctx, opts...)
 	}

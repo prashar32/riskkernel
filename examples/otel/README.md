@@ -57,6 +57,22 @@ Same spans, just change the endpoint:
 Use `OTEL_EXPORTER_OTLP_PROTOCOL=http` (and endpoint `http://host:4318`) if your
 backend prefers OTLP/HTTP.
 
+**Authenticated backends.** For any endpoint that needs an auth token — Honeycomb,
+Grafana Cloud, a hosted collector — set the standard `OTEL_EXPORTER_OTLP_HEADERS`
+as a comma-separated list of `key=value` pairs:
+
+```bash
+# Honeycomb
+export OTEL_EXPORTER_OTLP_ENDPOINT=https://api.honeycomb.io
+export OTEL_EXPORTER_OTLP_HEADERS="x-honeycomb-team=$HONEYCOMB_API_KEY"
+
+# Any Bearer-token endpoint
+export OTEL_EXPORTER_OTLP_HEADERS="authorization=Bearer $TOKEN"
+```
+
+Header values carry secrets and are never logged. The traces-specific
+`OTEL_EXPORTER_OTLP_TRACES_HEADERS` takes precedence when both are set.
+
 ## Building cost/usage dashboards
 
 **Want it ready-made?** [`grafana/`](grafana/) ships a provisioned Grafana + Tempo
