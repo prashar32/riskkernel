@@ -9,6 +9,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-06-07
+
+Observability, rounded out: tool-call governance now shows up in your traces, a
+ready-made Grafana + Tempo dashboard turns RiskKernel's spans into cost/halt/tool
+panels, and OTLP export can authenticate to backends that require it (Honeycomb,
+Grafana Cloud). No breaking API changes; forward-compatible with v0.3.x state.
+
 ### Added
 - **Tool governance shows up in your traces.** Every governed MCP `tools/call` now
   emits an OpenTelemetry span (`execute_tool {tool}`) alongside the model-call spans,
@@ -245,7 +252,8 @@ and a memory you own, in one self-hosted binary. Three integration surfaces
   (keyless) on each `v*` tag; GoReleaser binaries + checksums + GitHub release;
   `govulncheck` + CodeQL in CI. One-line `docker run` quickstart.
 
-[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/prashar32/riskkernel/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/prashar32/riskkernel/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/prashar32/riskkernel/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/prashar32/riskkernel/compare/v0.1.1...v0.1.2
