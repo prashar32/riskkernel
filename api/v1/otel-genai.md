@@ -22,6 +22,12 @@ One span per **model call** (`gen_ai.client` kind), nested under one span per
 **step**, nested under one span per **run**. Span names follow the convention
 `{gen_ai.operation.name} {gen_ai.request.model}`, e.g. `chat claude-sonnet-4-5`.
 
+One span per **governed MCP tool call** (`gen_ai.operation.name` = `execute_tool`),
+named `execute_tool {tool}`, e.g. `execute_tool write_file`. It carries the
+governance outcome in `riskkernel.tool.status`, so allowlist blocks and approval
+denials are visible alongside model calls — a refused call is marked with an error
+span status.
+
 ## Emitted attributes (`gen_ai.*` — standard)
 
 | Attribute | Type | Example | Notes |
@@ -36,6 +42,7 @@ One span per **model call** (`gen_ai.client` kind), nested under one span per
 | `gen_ai.usage.output_tokens` | int | `134` | Completion tokens. |
 | `gen_ai.response.finish_reasons` | string[] | `["stop"]` | |
 | `gen_ai.response.id` | string | `msg_01...` | Provider response id. |
+| `gen_ai.tool.name` | string | `write_file` | On tool-call spans: the tool invoked. |
 | `error.type` | string | `provider_error` | On failure (standard OTel). |
 
 > Prompt/response **content** is NOT emitted by default (privacy + no telemetry
@@ -57,10 +64,8 @@ conventions don't model. Names are stable per COMPATIBILITY.md.
 | `riskkernel.budget.dollars.limit` | double | `5.00` | |
 | `riskkernel.budget.dollars.remaining` | double | `4.81` | |
 | `riskkernel.halt.reason` | string | `token_budget_exceeded` | Set on the span where the governor halted the run (see HaltReason in openapi.yaml). |
-| `riskkernel.approval.required` | bool | `true` | Side-effecting call gated for HITL. |
-| `riskkernel.approval.decision` | string | `approve` | Once resolved. |
-| `riskkernel.tool.name` | string | `mcp://shell` | For tool-call spans. |
-| `riskkernel.tool.side_effect` | string | `write` | Classified side effect. |
+| `riskkernel.tool.side_effect` | string | `write` | On tool-call spans: the classified side effect (empty = read-only). |
+| `riskkernel.tool.status` | string | `blocked` | On tool-call spans: `approved`, `blocked` (allowlist), `denied` (approval), or `timeout`. |
 
 ## Consumption (ingress)
 

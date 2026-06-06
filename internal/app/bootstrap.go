@@ -117,7 +117,7 @@ func Build(cfg *config.Config) (*Deps, error) {
 
 	var mcpGW *mcp.Gateway
 	if cfg.MCP.Upstream != "" {
-		mcpGW = mcp.New(cfg.MCP.Upstream, cfg.MCP.Allowlist, cfg.MCP.ReadOnly, gate, mgr, store,
+		mcpGW = mcp.New(cfg.MCP.Upstream, cfg.MCP.Allowlist, cfg.MCP.ReadOnly, gate, mgr, store, tracer,
 			time.Duration(cfg.MCP.ApprovalTimeoutSeconds)*time.Second, log)
 		log.Info("mcp gateway enabled", "upstream", cfg.MCP.Upstream,
 			"allowlist", len(cfg.MCP.Allowlist), "readonly", len(cfg.MCP.ReadOnly))

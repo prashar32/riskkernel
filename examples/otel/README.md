@@ -1,10 +1,11 @@
 # Observability — OpenTelemetry GenAI export (Surface 3)
 
-RiskKernel emits one OpenTelemetry span per governed model call, carrying the
-attribute set pinned in [`api/v1/otel-genai.md`](../../api/v1/otel-genai.md):
-standard `gen_ai.*` (system, model, token usage, finish reason) plus the
-`riskkernel.*` governance extension (run id, step, **cost in USD**, **budget
-remaining**, **halt reason**). Point it at any OTLP backend you already run.
+RiskKernel emits one OpenTelemetry span per governed model call — and one per
+governed MCP **tool call** — carrying the attribute set pinned in
+[`api/v1/otel-genai.md`](../../api/v1/otel-genai.md): standard `gen_ai.*` (system,
+model, token usage, finish reason) plus the `riskkernel.*` governance extension
+(run id, step, **cost in USD**, **budget remaining**, **halt reason**, **tool
+status**). Point it at any OTLP backend you already run.
 
 > **No telemetry by default.** RiskKernel exports *nothing* unless you set
 > `OTEL_EXPORTER_OTLP_ENDPOINT`. Spans go only to the endpoint you choose. See
@@ -36,6 +37,11 @@ span named `chat claude-sonnet-4-5`. Open it to see the attributes — including
 `riskkernel.cost.usd`, `riskkernel.budget.tokens.remaining`, and (if the run hit a
 limit) `riskkernel.halt.reason`.
 
+Governed MCP tool calls land the same way, as `execute_tool {tool}` spans carrying
+`gen_ai.tool.name` and `riskkernel.tool.status` — a blocked or denied call is marked
+with an error status, so policy refusals stand out in the trace UI next to your
+model calls.
+
 ## Other backends
 
 Same spans, just change the endpoint:
@@ -62,3 +68,6 @@ panels directly from spans (e.g. in Grafana over Tempo, or SigNoz):
 - **Halts** — count of spans where `riskkernel.halt.reason` is present, grouped by
   reason (`token_budget_exceeded`, `time_budget_exceeded`, …).
 - **Latency by model** — span duration grouped by `gen_ai.request.model`.
+- **Tool refusals** — count of `execute_tool` spans grouped by
+  `riskkernel.tool.status` (`blocked` by the allowlist, `denied` at the approval
+  gate, or `timeout` vs `approved`).
