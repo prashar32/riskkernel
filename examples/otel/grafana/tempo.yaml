@@ -1,0 +1,52 @@
+# Minimal single-binary Tempo with TraceQL metrics enabled.
+#
+# TraceQL metrics (sum_over_time / count_over_time / quantile_over_time over span
+# attributes) is what powers the dashboard's cost and governance panels. It needs
+# the metrics_generator's `local-blocks` processor turned on — that's the only
+# non-default piece here.
+stream_over_http_enabled: true
+
+server:
+  http_listen_port: 3200
+
+# Receive RiskKernel's OTLP spans directly (no collector in the middle).
+distributor:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+
+ingester:
+  max_block_duration: 5m # cut blocks quickly so spans are queryable fast
+
+# TraceQL metrics queries read from the local-blocks processor.
+query_frontend:
+  metrics:
+    max_duration: 200h
+
+metrics_generator:
+  storage:
+    path: /var/tempo/generator/wal
+  traces_storage:
+    path: /var/tempo/generator/traces
+  processor:
+    local_blocks:
+      filter_server_spans: false # keep client/internal spans (our model + tool spans)
+      flush_to_storage: true # persist so metrics queries see more than the live window
+
+storage:
+  trace:
+    backend: local
+    wal:
+      path: /var/tempo/wal
+    local:
+      path: /var/tempo/blocks
+
+# Enable the local-blocks processor for the (single, default) tenant.
+overrides:
+  defaults:
+    metrics_generator:
+      processors: [local-blocks]

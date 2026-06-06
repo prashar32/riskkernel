@@ -1,0 +1,45 @@
+# A local Grafana + Tempo stack with a ready-made RiskKernel dashboard.
+#
+# Unlike the Jaeger quick-look one directory up (which is for eyeballing individual
+# traces), this turns RiskKernel's spans into cost and governance *panels* — spend
+# per run, token burn, budget halts, tool-call outcomes, latency by model — using
+# Tempo's TraceQL metrics. The dashboard is provisioned, so it's import-free.
+#
+#   docker compose -f examples/otel/grafana/docker-compose.yaml up -d
+#   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317 \
+#   OTEL_EXPORTER_OTLP_PROTOCOL=grpc \
+#   ANTHROPIC_API_KEY=sk-ant-... \
+#   riskkernel serve
+#
+# Then drive some governed traffic and open:
+#
+#   http://localhost:3000  →  Dashboards  →  "RiskKernel — agent runs"
+#
+# RiskKernel emits NOTHING unless OTEL_EXPORTER_OTLP_ENDPOINT is set. See SECURITY.md.
+
+services:
+  tempo:
+    image: grafana/tempo:2.8.1
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./tempo.yaml:/etc/tempo.yaml:ro
+    ports:
+      - "4317:4317" # OTLP gRPC  — point OTEL_EXPORTER_OTLP_ENDPOINT here
+      - "4318:4318" # OTLP HTTP
+      - "3200:3200" # Tempo API (used by Grafana; handy for ad-hoc queries)
+
+  grafana:
+    image: grafana/grafana:11.3.0
+    depends_on: [tempo]
+    environment:
+      # Local example only: open, login-free Grafana. Do NOT copy this auth posture
+      # to anything reachable by others.
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+      - GF_AUTH_DISABLE_LOGIN_FORM=true
+      - GF_FEATURE_TOGGLES_ENABLE=traceqlEditor
+    ports:
+      - "3000:3000" # Grafana UI
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./dashboards:/var/lib/grafana/dashboards:ro

@@ -17,6 +17,11 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   blocks and approval denials are now visible in whatever OTLP backend you already
   run — a refused call is marked with an error span status so it stands out. See
   [`api/v1/otel-genai.md`](api/v1/otel-genai.md) and [`examples/otel`](examples/otel).
+- **A ready-made cost & governance dashboard** ([`examples/otel/grafana`](examples/otel/grafana)) —
+  a provisioned Grafana + Tempo stack that turns RiskKernel's spans into panels:
+  spend over time and per run, token burn, budget halts by reason, tool-call outcomes,
+  and p95 latency by model. Built from the spans you already emit (Tempo TraceQL
+  metrics — no extra instrumentation); `docker compose up`, no import step.
 
 ## [0.3.0] - 2026-06-06
 
