@@ -59,7 +59,11 @@ backend prefers OTLP/HTTP.
 
 ## Building cost/usage dashboards
 
-Because cost and budget live on every span as first-class attributes, you can build
+**Want it ready-made?** [`grafana/`](grafana/) ships a provisioned Grafana + Tempo
+stack with a RiskKernel dashboard (spend, halts, tool outcomes, latency) — one
+`docker compose up`, no import step.
+
+Because cost and budget live on every span as first-class attributes, you can also build
 panels directly from spans (e.g. in Grafana over Tempo, or SigNoz):
 
 - **Spend per run** — sum `riskkernel.cost.usd` grouped by `riskkernel.run.id`.

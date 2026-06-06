@@ -1,0 +1,12 @@
+# Auto-provision the Tempo data source so the dashboard works on first load.
+apiVersion: 1
+
+datasources:
+  - name: Tempo
+    type: tempo
+    uid: tempo
+    access: proxy
+    url: http://tempo:3200
+    jsonData:
+      streamingEnabled:
+        search: true
