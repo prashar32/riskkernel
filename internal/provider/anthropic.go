@@ -39,6 +39,16 @@ func NewAnthropic(apiKey string) *Anthropic {
 	}
 }
 
+// WithBaseURL overrides the API base — point it at a proxy that fronts Anthropic
+// or a local mock (e.g. for benchmarking). Empty keeps the default. Returns the
+// provider for chaining.
+func (a *Anthropic) WithBaseURL(url string) *Anthropic {
+	if url != "" {
+		a.baseURL = strings.TrimRight(url, "/")
+	}
+	return a
+}
+
 // Name returns the stable provider identifier.
 func (a *Anthropic) Name() string { return "anthropic" }
 

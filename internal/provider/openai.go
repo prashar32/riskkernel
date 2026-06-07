@@ -31,6 +31,16 @@ func NewOpenAI(apiKey string) *OpenAI {
 	}
 }
 
+// WithBaseURL overrides the API base — point it at an OpenAI-compatible gateway,
+// a corporate proxy, or a local mock (e.g. for benchmarking). Empty keeps the
+// default. Returns the provider for chaining.
+func (o *OpenAI) WithBaseURL(url string) *OpenAI {
+	if url != "" {
+		o.baseURL = strings.TrimRight(url, "/")
+	}
+	return o
+}
+
 // Name returns the stable provider identifier.
 func (o *OpenAI) Name() string { return "openai" }
 
