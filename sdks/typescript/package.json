@@ -1,0 +1,38 @@
+{
+  "name": "@riskkernel/sdk",
+  "version": "0.1.0",
+  "description": "Thin TypeScript client for the RiskKernel reliability runtime (Surface 2).",
+  "license": "Apache-2.0",
+  "author": "Adarsh Prashar",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/prashar32/riskkernel",
+    "directory": "sdks/typescript"
+  },
+  "homepage": "https://github.com/prashar32/riskkernel",
+  "keywords": ["riskkernel", "ai-agents", "llm", "budget", "governance", "observability"],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist"],
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "tsup": "^8",
+    "typescript": "^5",
+    "vitest": "^2"
+  }
+}
