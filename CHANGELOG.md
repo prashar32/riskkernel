@@ -10,6 +10,12 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **TypeScript SDK: crash-resume.** `Runtime.resumeRun(runId, fn)` re-attaches a
+  Node/TypeScript agent to an existing governed run after a crash — it neither
+  creates a new run nor cancels on error, so the daemon's restored budget and usage
+  continue enforcing without re-spending. Mirrors the Python SDK's `resume_run`; read
+  `run.latestCheckpoint()` to resume from where the agent left off. See
+  [`docs/RESUME.md`](docs/RESUME.md) and [`sdks/typescript`](sdks/typescript).
 - **Point a provider at a custom upstream.** Set `RISKKERNEL_OPENAI_BASE_URL` or
   `RISKKERNEL_ANTHROPIC_BASE_URL` to route that provider through an OpenAI-compatible
   gateway, a corporate proxy, or a local mock (e.g. for benchmarking) instead of its

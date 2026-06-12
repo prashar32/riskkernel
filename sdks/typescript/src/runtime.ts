@@ -157,6 +157,35 @@ export class Runtime {
       throw e;
     }
   }
+
+  /**
+   * Re-attach to an existing governed run by id — the resume path after a crash.
+   *
+   * Unlike {@link governedRun}, this neither creates a new run nor cancels on
+   * error: the daemon reloads non-terminal runs on restart with the budget and
+   * usage they had already spent, so enforcement continues without re-spending.
+   * Read {@link Run.latestCheckpoint} to pick the work back up where it left off:
+   *
+   * ```ts
+   * await rt.resumeRun(runId, async (run) => {
+   *   const cp = await run.latestCheckpoint();
+   *   const start = (cp?.payload?.cursor as number) ?? 0;
+   *   for (let i = start; i < total; i++) {
+   *     await run.step();                        // counts against the SAME budget
+   *     // ... your agent's work ...
+   *     await run.checkpoint("progress", { cursor: i + 1 });
+   *   }
+   * });
+   * ```
+   *
+   * The run id is the only thing the agent must keep across a restart. Throws
+   * {@link APIError} (404) if the run id is unknown.
+   */
+  async resumeRun<T>(runId: string, fn: (run: Run) => Promise<T>): Promise<T> {
+    const data = await this.client.getRun(runId);
+    const run = new Run(this.client, data, this.pollMs, this.timeoutMs);
+    return fn(run);
+  }
 }
 
 function toBudgetDict(b?: Budget): Record<string, number> | undefined {
