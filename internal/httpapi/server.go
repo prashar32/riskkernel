@@ -71,6 +71,10 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("POST /v1/runs/{id}/steps", s.requireAuth(s.handleBeginStep))
 		mux.HandleFunc("POST /v1/runs/{id}/checkpoints", s.requireAuth(s.handleSaveCheckpoint))
 		mux.HandleFunc("POST /v1/runs/{id}/cancel", s.requireAuth(s.handleCancelRun))
+		// Reusable, named policy bundles — referenced by a run's policyRef.
+		mux.HandleFunc("POST /v1/policies", s.requireAuth(s.handleRegisterPolicy))
+		mux.HandleFunc("GET /v1/policies", s.requireAuth(s.handleListPolicies))
+		mux.HandleFunc("GET /v1/policies/{name}", s.requireAuth(s.handleGetPolicy))
 	}
 	if s.approvals != nil {
 		mux.HandleFunc("POST /v1/runs/{id}/approve", s.requireAuth(s.handleApprove))

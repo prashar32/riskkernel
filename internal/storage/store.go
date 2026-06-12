@@ -111,6 +111,28 @@ type ApprovalRecord struct {
 	DecidedAt  *time.Time
 }
 
+// ApprovalRule mirrors an api/v1 ApprovalPolicy rule: an action needs approval if
+// it matches the tool exactly or the side-effect glob.
+type ApprovalRule struct {
+	Tool       string `json:"tool,omitempty"`
+	SideEffect string `json:"sideEffect,omitempty"`
+}
+
+// PolicyRecord is a reusable, named policy bundle — a default budget, a tool
+// allowlist, and approval rules — that a run can reference by name (policyRef)
+// instead of inlining. Mirrors the api/v1 Policy schema.
+type PolicyRecord struct {
+	Name          string
+	BudgetTokens  int64
+	BudgetDollars float64
+	BudgetLoops   int32
+	BudgetSeconds int32
+	ToolAllowlist []string
+	ApprovalRules []ApprovalRule
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
+}
+
 // LedgerTotals aggregates spend for audit/reporting.
 type LedgerTotals struct {
 	RunID            string  `json:"runId"`
@@ -196,6 +218,13 @@ type Store interface {
 	ResolveApproval(ctx context.Context, id, status, reason, decidedBy string, decidedAt time.Time) error
 	// ListApprovals returns approvals filtered by status ("" = all), newest first.
 	ListApprovals(ctx context.Context, status string) ([]ApprovalRecord, error)
+
+	// UpsertPolicy inserts or replaces a named policy bundle (register/update by name).
+	UpsertPolicy(ctx context.Context, p PolicyRecord) error
+	// GetPolicy returns a policy bundle by name, or ErrNotFound.
+	GetPolicy(ctx context.Context, name string) (PolicyRecord, error)
+	// ListPolicies returns all policy bundles, newest first.
+	ListPolicies(ctx context.Context) ([]PolicyRecord, error)
 
 	// SaveCheckpoint appends a crash-resumable checkpoint.
 	SaveCheckpoint(ctx context.Context, c CheckpointRecord) error
