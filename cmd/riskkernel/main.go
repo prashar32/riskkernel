@@ -80,6 +80,7 @@ Usage:
   riskkernel runs resume <id>   Show a run's resumable state after a crash
   riskkernel audit export <id>  Export a run's cost ledger as JSON
   riskkernel audit tools <id>   Export a run's governed tool calls as JSON
+  riskkernel audit compliance <id>  Auditor-ready OWASP / EU AI Act evidence export
   riskkernel approvals list     List pending human-in-the-loop approvals
   riskkernel approvals approve <id> [--reason ...]  Approve a pending request
   riskkernel approvals deny <id> [--reason ...]     Deny a pending request

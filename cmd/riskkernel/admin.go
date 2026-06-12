@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/prashar32/riskkernel/internal/app"
+	"github.com/prashar32/riskkernel/internal/audit"
 	"github.com/prashar32/riskkernel/internal/config"
 	"github.com/prashar32/riskkernel/internal/storage"
 )
@@ -156,16 +157,65 @@ func maxFloat(a, b float64) float64 {
 // runAudit implements the local audit read-back commands.
 func runAudit(args []string) error {
 	if len(args) < 2 {
-		return fmt.Errorf("usage: riskkernel audit <export|tools> <run-id>")
+		return fmt.Errorf("usage: riskkernel audit <export|tools|compliance> <run-id>")
 	}
 	switch args[0] {
 	case "export":
 		return auditExport(args[1])
 	case "tools":
 		return auditTools(args[1])
+	case "compliance":
+		return auditCompliance(args[1])
 	default:
-		return fmt.Errorf("unknown audit subcommand %q (want export|tools)", args[0])
+		return fmt.Errorf("unknown audit subcommand %q (want export|tools|compliance)", args[0])
 	}
+}
+
+// auditCompliance prints an auditor-ready compliance export for a run: its
+// governance controls mapped to OWASP / EU AI Act references, plus a hash-chained,
+// tamper-evident event log. Evidence only — not a legal determination.
+func auditCompliance(runID string) error {
+	store, err := openStoreForCLI()
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	run, err := store.GetRun(ctx, runID)
+	if err != nil {
+		return fmt.Errorf("run %s: %w", runID, err)
+	}
+	ledger, err := store.LedgerForRun(ctx, runID)
+	if err != nil {
+		return err
+	}
+	totals, err := store.Totals(ctx, runID)
+	if err != nil {
+		return err
+	}
+	toolCalls, err := store.ListToolCalls(ctx, runID)
+	if err != nil {
+		return err
+	}
+	all, err := store.ListApprovals(ctx, "") // filtered to this run below
+	if err != nil {
+		return err
+	}
+	var approvals []storage.ApprovalRecord
+	for _, a := range all {
+		if a.RunID == runID {
+			approvals = append(approvals, a)
+		}
+	}
+
+	rep := audit.BuildReport(audit.RunData{
+		Run: run, Ledger: ledger, Totals: totals, ToolCalls: toolCalls, Approvals: approvals,
+	}, time.Now())
+
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	return enc.Encode(rep)
 }
 
 func auditExport(runID string) error {

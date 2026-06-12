@@ -9,6 +9,16 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+### Added
+- **Compliance evidence export.** `riskkernel audit compliance <run-id>` produces an
+  auditor-ready report: the controls RiskKernel recorded (budget enforcement, human
+  oversight, tool governance, record-keeping) mapped to the relevant OWASP and EU AI
+  Act references, plus a **hash-chained, tamper-evident** event log (each event's
+  hash chains the previous, so any edit/reorder/truncation breaks it — the
+  verification procedure is embedded). It's an *evidence* export with a built-in
+  disclaimer — not a legal compliance determination; nothing is inferred by an LLM.
+  See [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md).
+
 ## [0.5.0] - 2026-06-13
 
 The TypeScript SDK lands. `@riskkernel/sdk` is on npm — a thin, dependency-free
