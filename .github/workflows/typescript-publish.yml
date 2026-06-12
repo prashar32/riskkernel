@@ -1,0 +1,83 @@
+name: Publish TypeScript SDK
+
+# Publishes `@riskkernel/sdk` to npm on every version tag, so the install is the
+# clean, ordinary `npm install @riskkernel/sdk` — no git URL, no file: path.
+#
+# Auth is npm Trusted Publishing (OIDC): NO npm token is stored anywhere. The
+# publish runs with `id-token: write` and npm (>= 11.5.1) exchanges the GitHub
+# OIDC token for a short-lived credential, and attaches build provenance.
+#
+# One-time setup on npmjs.com (https://docs.npmjs.com/trusted-publishers):
+#   on the @riskkernel/sdk package → Settings → Trusted Publisher → GitHub Actions
+#     Organization/User: prashar32   Repository: riskkernel
+#     Workflow filename: typescript-publish.yml   Environment: (leave blank)
+#   First publish only: npm can't configure a trusted publisher for a name that
+#   doesn't exist yet, so claim it once manually —
+#     cd sdks/typescript && npm publish --access public
+#   then add the trusted publisher above; every tagged release after that is
+#   tokenless via this workflow. (On the org transfer, re-point the publisher to
+#   the new owner — the npm analog of moving the PyPI trusted publisher.)
+#
+# The version in sdks/typescript/package.json must match the tag (the release
+# checklist bumps it alongside the Python SDK); the guard step below fails loudly
+# on a mismatch rather than publishing a wrong version.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Build & publish @riskkernel/sdk to npm
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdks/typescript
+    permissions:
+      id-token: write # OIDC for npm trusted publishing + provenance — no stored token
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+
+      # Trusted publishing + provenance need a recent npm; the runner's bundled
+      # npm can lag. Pin to a version that supports OIDC publishing.
+      - name: Use an OIDC-capable npm
+        run: npm install -g npm@latest
+
+      - name: Install
+        run: npm ci
+
+      # Don't publish a version that doesn't match the tag that triggered this.
+      - name: Verify package version matches the tag
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::tag v$tag does not match package.json version $pkg — bump sdks/typescript/package.json to match the release tag"
+            exit 1
+          fi
+
+      # Don't publish a broken SDK.
+      - name: Typecheck & test
+        run: |
+          npm run typecheck
+          npm test
+
+      - name: Build
+        run: npm run build
+
+      # Idempotent: skip if this version is already on npm (re-run / re-tag safe).
+      - name: Publish to npm
+        run: |
+          name="$(node -p "require('./package.json').name")"
+          version="$(node -p "require('./package.json').version")"
+          if npm view "$name@$version" version >/dev/null 2>&1; then
+            echo "$name@$version is already published — nothing to do."
+            exit 0
+          fi
+          npm publish --provenance --access public
