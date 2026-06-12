@@ -129,7 +129,7 @@ func runServe(_ []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	srv := httpapi.New(cfg, deps.Gateway, deps.Runs, deps.Approvals, deps.MCP, deps.Memory, deps.Log)
+	srv := httpapi.New(cfg, deps.Gateway, deps.Runs, deps.Approvals, deps.Slack, deps.MCP, deps.Memory, deps.Log)
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	return srv.Serve(ctx, addr)
 }

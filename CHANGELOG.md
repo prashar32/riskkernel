@@ -9,6 +9,17 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+### Added
+- **Approve from Slack.** A new push channel for the human-in-the-loop gate: set
+  `RISKKERNEL_APPROVAL_SLACK_BOT_TOKEN` + `RISKKERNEL_APPROVAL_SLACK_CHANNEL` and a
+  gated, side-effecting tool call is posted to the channel with **Approve / Deny**
+  buttons; the click resolves the pending action and the message is rewritten with
+  the outcome. The interactivity callback (`/v1/integrations/slack/interactions`) is
+  authenticated by the Slack request signature (`RISKKERNEL_APPROVAL_SLACK_SIGNING_SECRET`),
+  verified over the raw body with a replay window and failing closed without it — not
+  the daemon API token, which Slack can't send. Works alongside the existing
+  CLI/web/webhook channels. See [`docs/APPROVALS_SLACK.md`](docs/APPROVALS_SLACK.md).
+
 ## [0.5.0] - 2026-06-13
 
 The TypeScript SDK lands. `@riskkernel/sdk` is on npm — a thin, dependency-free
