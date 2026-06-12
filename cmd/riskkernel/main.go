@@ -47,6 +47,8 @@ func main() {
 		err = runRuns(args)
 	case "audit":
 		err = runAudit(args)
+	case "policy":
+		err = runPolicy(args)
 	case "approvals":
 		err = runApprovals(args)
 	case "memory":
@@ -80,6 +82,8 @@ Usage:
   riskkernel runs resume <id>   Show a run's resumable state after a crash
   riskkernel audit export <id>  Export a run's cost ledger as JSON
   riskkernel audit tools <id>   Export a run's governed tool calls as JSON
+  riskkernel policy validate <file>          Validate a riskkernel.yaml policy file
+  riskkernel policy dry-run <file> <run-id>  Show what a policy would gate/halt on a run
   riskkernel approvals list     List pending human-in-the-loop approvals
   riskkernel approvals approve <id> [--reason ...]  Approve a pending request
   riskkernel approvals deny <id> [--reason ...]     Deny a pending request
