@@ -6,13 +6,21 @@ deterministic decision (budgets, halts, approval policy); this package just make
 governed runs ergonomic from Node/TypeScript. **No runtime dependencies** — it uses
 the global `fetch` (Node 20+), the same stdlib-only ethos as the Python SDK.
 
-> **Status:** core client — run control, budgets, crash-resume (`resumeRun`), the
-> governing proxy, approval gates, and the Vercel AI SDK adapter. npm publishing is
-> tracked in the repo issues (**#82**) — contributions welcome.
+> **Status:** at parity with the Python SDK — run control, budgets, crash-resume
+> (`resumeRun`), the governing proxy, approval gates, and the Vercel AI SDK adapter.
 
 > **No runtime dependencies:** the core client uses only the global `fetch`. The
 > Vercel adapter (`@riskkernel/sdk/vercel`) takes `@ai-sdk/provider` as an *optional*
 > peer, used at compile time only — importing the core never pulls it in.
+
+## Install
+
+```bash
+npm install @riskkernel/sdk
+```
+
+Requires Node 20+. Zero runtime dependencies; for the Vercel adapter also install
+the AI SDK (`npm install ai`), which brings the `@ai-sdk/provider` peer.
 
 ## Use
 
