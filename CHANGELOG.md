@@ -16,6 +16,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   continue enforcing without re-spending. Mirrors the Python SDK's `resume_run`; read
   `run.latestCheckpoint()` to resume from where the agent left off. See
   [`docs/RESUME.md`](docs/RESUME.md) and [`sdks/typescript`](sdks/typescript).
+- **TypeScript SDK: Vercel AI SDK adapter.** `governMiddleware(run)` (from
+  `@riskkernel/sdk/vercel`) is an AI SDK language-model middleware that ticks one
+  governed step per model call, so a run's loop/time budget is enforced and a halt
+  surfaces as `BudgetExceeded` out of `generateText` / `streamText` — the JS analog
+  of the Python LangChain / OpenAI-Agents adapters. `@ai-sdk/provider` is an optional
+  peer used at compile time only, so the core stays dependency-free. Pinned to AI SDK
+  v5; runnable example at [`examples/vercel-ai-sdk`](examples/vercel-ai-sdk).
 - **Point a provider at a custom upstream.** Set `RISKKERNEL_OPENAI_BASE_URL` or
   `RISKKERNEL_ANTHROPIC_BASE_URL` to route that provider through an OpenAI-compatible
   gateway, a corporate proxy, or a local mock (e.g. for benchmarking) instead of its

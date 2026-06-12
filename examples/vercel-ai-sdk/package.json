@@ -1,0 +1,20 @@
+{
+  "name": "riskkernel-example-vercel-ai-sdk",
+  "private": true,
+  "type": "module",
+  "description": "Govern a Vercel AI SDK agent with RiskKernel — a loop budget hard-stops it.",
+  "scripts": {
+    "start": "tsx index.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@riskkernel/sdk": "file:../../sdks/typescript",
+    "ai": "^5.0.0"
+  },
+  "devDependencies": {
+    "@ai-sdk/provider": "^2.0.0",
+    "@types/node": "^22",
+    "tsx": "^4",
+    "typescript": "^5"
+  }
+}

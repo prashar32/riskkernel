@@ -20,6 +20,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./vercel": {
+      "types": "./dist/vercel.d.ts",
+      "import": "./dist/vercel.js",
+      "require": "./dist/vercel.cjs"
     }
   },
   "files": ["dist"],
@@ -30,10 +35,17 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
+    "@ai-sdk/provider": "^2.0.3",
     "@types/node": "^22",
     "tsup": "^8",
     "typescript": "^5",
     "vitest": "^3.2.6"
+  },
+  "peerDependencies": {
+    "@ai-sdk/provider": ">=2"
+  },
+  "peerDependenciesMeta": {
+    "@ai-sdk/provider": { "optional": true }
   },
   "overrides": {
     "esbuild": "^0.25.0"
