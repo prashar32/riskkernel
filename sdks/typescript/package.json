@@ -23,7 +23,7 @@
     }
   },
   "files": ["dist"],
-  "engines": { "node": ">=18" },
+  "engines": { "node": ">=20" },
   "scripts": {
     "build": "tsup",
     "test": "vitest run",
@@ -33,6 +33,9 @@
     "@types/node": "^22",
     "tsup": "^8",
     "typescript": "^5",
-    "vitest": "^2"
+    "vitest": "^3.2.6"
+  },
+  "overrides": {
+    "esbuild": "^0.25.0"
   }
 }

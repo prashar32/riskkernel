@@ -4,7 +4,7 @@ Thin TypeScript client for the [RiskKernel](https://github.com/prashar32/riskker
 reliability runtime — **Surface 2** (deep control). The Go daemon makes every
 deterministic decision (budgets, halts, approval policy); this package just makes
 governed runs ergonomic from Node/TypeScript. **No runtime dependencies** — it uses
-the global `fetch` (Node 18+), the same stdlib-only ethos as the Python SDK.
+the global `fetch` (Node 20+), the same stdlib-only ethos as the Python SDK.
 
 > **Status:** core client — run control, budgets, the governing proxy, and approval
 > gates. Crash-resume (`resumeRun`), framework adapters (Vercel AI SDK), and npm
