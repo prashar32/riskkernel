@@ -9,6 +9,15 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-06-13
+
+The TypeScript SDK lands. `@riskkernel/sdk` is on npm — a thin, dependency-free
+client at parity with the Python SDK: governed runs, budgets, the governing proxy,
+approval gates, crash-resume (`resumeRun`), and a Vercel AI SDK adapter that governs
+a Node agent with ~no code change. Alongside it: a reproducible cost benchmark and a
+crash-resume correctness fix (a halted run now stays halted across a restart when its
+id is reused). No breaking API changes; forward-compatible with v0.4.x state.
+
 ### Added
 - **TypeScript SDK: crash-resume.** `Runtime.resumeRun(runId, fn)` re-attaches a
   Node/TypeScript agent to an existing governed run after a crash — it neither
@@ -286,7 +295,8 @@ and a memory you own, in one self-hosted binary. Three integration surfaces
   (keyless) on each `v*` tag; GoReleaser binaries + checksums + GitHub release;
   `govulncheck` + CodeQL in CI. One-line `docker run` quickstart.
 
-[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/prashar32/riskkernel/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/prashar32/riskkernel/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/prashar32/riskkernel/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/prashar32/riskkernel/compare/v0.1.2...v0.2.0
