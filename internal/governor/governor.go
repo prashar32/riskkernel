@@ -102,6 +102,19 @@ func WithRestoredUsage(u Usage) Option {
 	return func(r *Run) { r.usage = u }
 }
 
+// WithRestoredHalt reconstructs a run that had already halted before a restart,
+// so a reused run-id stays terminal — it refuses further work with its original
+// reason instead of resuming. Crash-resume restores in-flight runs with
+// WithRestoredUsage; this restores the ones that were already over, so a reused
+// id can't be handed a fresh budget. A HaltNone reason is a no-op. (#29)
+func WithRestoredHalt(reason HaltReason) Option {
+	return func(r *Run) {
+		if reason != HaltNone {
+			r.halted = reason
+		}
+	}
+}
+
 // New starts governing a run under budget b. The returned Run derives a Context
 // (from parent) that is cancelled on halt/cancel, and that additionally carries a
 // real-time deadline when a time budget is set — so an in-flight provider call is
@@ -122,6 +135,11 @@ func New(parent context.Context, b Budget, opts ...Option) *Run {
 		r.ctx, r.cancel = context.WithTimeout(parent, time.Duration(b.Seconds)*time.Second)
 	} else {
 		r.ctx, r.cancel = context.WithCancel(parent)
+	}
+	if r.halted != HaltNone {
+		// A run restored via WithRestoredHalt is already terminal: fire the kill
+		// switch so its Context is dead, matching a run that halted live.
+		r.cancel()
 	}
 	return r
 }

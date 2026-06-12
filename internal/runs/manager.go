@@ -12,6 +12,7 @@ package runs
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -265,20 +266,53 @@ func (m *Manager) Get(rid string) (*Run, bool) {
 // GetOrCreate returns the run with the given id, lazily creating it under the
 // default budget if unknown. This is the proxy path: a client groups calls into a
 // run by sending a stable run-id header; the first call materializes the run.
+//
+// On a cache miss it first consults the store: a run with that id may already
+// exist there — e.g. one that halted before a restart (Reload restores only
+// running runs). Such a run is restored as-is, so a terminal/over-budget run stays
+// halted and keeps refusing work instead of being handed a fresh, default-budget
+// run for the reused id. Only a genuinely unknown id mints a new run. (#29)
 func (m *Manager) GetOrCreate(rid string) *Run {
 	if r, ok := m.Get(rid); ok {
 		return r
 	}
+	restored := m.restoreFromStore(rid) // store I/O without the manager lock; nil if unknown
+
 	m.mu.Lock()
 	if r, ok := m.runs[rid]; ok { // re-check under write lock
 		m.mu.Unlock()
+		if restored != nil {
+			restored.Close() // lost the race: release the discarded governor's context
+		}
 		return r
 	}
-	r := m.newRun(rid, "", m.defaultBudget, nil)
+	r := restored
+	if r == nil {
+		r = m.newRun(rid, "", m.defaultBudget, nil)
+	}
 	m.runs[rid] = r
 	m.mu.Unlock()
-	m.persistRun(r)
+	if restored == nil {
+		m.persistRun(r) // only a genuinely new run needs its initial row written
+	}
 	return r
+}
+
+// restoreFromStore reconstructs a run that already exists in the store (any
+// status), or returns nil if the id is unknown or there is no store. Does its I/O
+// without holding the manager lock.
+func (m *Manager) restoreFromStore(rid string) *Run {
+	if m.store == nil {
+		return nil
+	}
+	rec, err := m.store.GetRun(context.Background(), rid)
+	if err != nil {
+		if !errors.Is(err, storage.ErrNotFound) {
+			m.log.Error("GetOrCreate store lookup failed", "run", rid, "err", err)
+		}
+		return nil
+	}
+	return m.reloadRun(context.Background(), rec)
 }
 
 // List returns snapshots of all runs.
@@ -350,15 +384,29 @@ func (m *Manager) reloadRun(ctx context.Context, rec storage.RunRecord) *Run {
 		Dollars:          rec.UsageDollars,
 		Loops:            rec.UsageLoops,
 	}
+	// A run that had already halted before the restart stays terminal: restore its
+	// exact halt reason so a reused id keeps refusing work (it can't be handed a
+	// fresh budget), rather than re-deriving the halt from usage — which would miss
+	// a kill-switch cancel or a time-budget halt. The partial-step rollback below is
+	// a resume concern (live runs only) and doesn't apply to a terminal run. (#29)
+	terminal := rec.Status == "halted" || rec.Status == "cancelled"
+
 	rolledBack := false
-	if cp, err := m.store.LatestCheckpoint(ctx, rec.ID); err == nil && cp.UsageLoops < rec.UsageLoops {
-		usage = governor.Usage{
-			PromptTokens:     cp.UsagePromptTokens,
-			CompletionTokens: cp.UsageCompletionTokens,
-			Dollars:          cp.UsageDollars,
-			Loops:            cp.UsageLoops,
+	if !terminal {
+		if cp, err := m.store.LatestCheckpoint(ctx, rec.ID); err == nil && cp.UsageLoops < rec.UsageLoops {
+			usage = governor.Usage{
+				PromptTokens:     cp.UsagePromptTokens,
+				CompletionTokens: cp.UsageCompletionTokens,
+				Dollars:          cp.UsageDollars,
+				Loops:            cp.UsageLoops,
+			}
+			rolledBack = true
 		}
-		rolledBack = true
+	}
+
+	opts := []governor.Option{governor.WithRestoredUsage(usage)}
+	if terminal {
+		opts = append(opts, governor.WithRestoredHalt(governor.HaltReason(rec.HaltReason)))
 	}
 	r := &Run{
 		ID:        rec.ID,
@@ -366,7 +414,7 @@ func (m *Manager) reloadRun(ctx context.Context, rec storage.RunRecord) *Run {
 		Budget:    budget,
 		Metadata:  rec.Metadata,
 		mgr:       m,
-		gov:       governor.New(context.Background(), budget, governor.WithRestoredUsage(usage)),
+		gov:       governor.New(context.Background(), budget, opts...),
 		createdAt: rec.CreatedAt,
 		updatedAt: rec.UpdatedAt,
 	}

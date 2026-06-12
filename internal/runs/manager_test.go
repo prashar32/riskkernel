@@ -285,3 +285,81 @@ func TestManager_LoopHaltPersistsStatus(t *testing.T) {
 		t.Fatalf("loop halt not persisted: status=%q reason=%q", got.Status, got.HaltReason)
 	}
 }
+
+// A run that halted before a restart must stay halted when its id is reused via
+// the proxy path (GetOrCreate) — not get handed a fresh, default-budget run that
+// returns 200 instead of 402. (#29)
+func TestManager_GetOrCreateRestoresHaltedRun(t *testing.T) {
+	store, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "reuse-halted.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	noop := slog.New(slog.NewTextHandler(noopWriter{}, nil))
+
+	// Process A: a run with a tiny $0.01 budget trips it and halts.
+	mA := NewManager(governor.Budget{}).WithStore(store, noop)
+	budget := governor.Budget{Dollars: 0.01}
+	rA := mA.Create(CreateOptions{ID: "halted-id", Budget: &budget})
+	step, _ := rA.BeginStep()
+	if err := rA.RecordCall(Call{StepIndex: step, Provider: "p", Model: "m",
+		Dollars: 0.02, Priced: true}); err == nil {
+		t.Fatal("the $0.02 call should have tripped the $0.01 budget")
+	}
+	if !rA.Halted() {
+		t.Fatal("run A should be halted")
+	}
+
+	// --- simulate restart: drop manager A, keep the store. Process B has an
+	// unlimited default budget, so a fresh run for the reused id would NOT halt. ---
+	mB := NewManager(governor.Budget{}).WithStore(store, noop)
+	if _, err := mB.Reload(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := mB.Get("halted-id"); ok {
+		t.Fatal("a halted run is not reloaded as live (Reload is running-only)")
+	}
+
+	// The proxy reuses the id via GetOrCreate. It must restore the HALTED run and
+	// keep refusing work, not mint a fresh unlimited-budget one.
+	rB := mB.GetOrCreate("halted-id")
+	if !rB.Halted() {
+		t.Fatal("reused halted id came back fresh — the halt did not survive the restart (#29)")
+	}
+	if err := rB.CanProceed(); err == nil {
+		t.Fatal("a restored halted run must refuse further work")
+	}
+	if v := rB.View(); v.Status != "halted" || v.HaltReason != governor.HaltDollarBudget {
+		t.Fatalf("restored run = status %q reason %q; want halted/dollar_budget_exceeded",
+			v.Status, v.HaltReason)
+	}
+
+	// A genuinely new id still materializes a fresh, running run.
+	if fresh := mB.GetOrCreate("brand-new-id"); fresh.Halted() {
+		t.Fatal("a brand-new id should be a fresh running run")
+	}
+}
+
+// A cancelled run (kill switch) must also stay terminal when its id is reused —
+// its usage may be under budget, so only restoring the halt reason recovers it.
+func TestManager_GetOrCreateRestoresCancelledRun(t *testing.T) {
+	store, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "reuse-cancelled.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	noop := slog.New(slog.NewTextHandler(noopWriter{}, nil))
+
+	mA := NewManager(governor.Budget{Dollars: 100}).WithStore(store, noop)
+	rA := mA.Create(CreateOptions{ID: "cancel-id"})
+	rA.Cancel()
+
+	mB := NewManager(governor.Budget{Dollars: 100}).WithStore(store, noop)
+	rB := mB.GetOrCreate("cancel-id")
+	if err := rB.CanProceed(); err == nil {
+		t.Fatal("a restored cancelled run must refuse further work")
+	}
+	if v := rB.View(); v.Status != "cancelled" || v.HaltReason != governor.HaltCancelled {
+		t.Fatalf("restored run = status %q reason %q; want cancelled", v.Status, v.HaltReason)
+	}
+}

@@ -33,6 +33,16 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   mock provider, and reports the spend saved straight from the cost ledger. Key-free
   and tunable: `python3 benchmark/benchmark.py`.
 
+### Fixed
+- **A halted run stays halted when its id is reused after a restart.** Reload
+  restores only *running* runs, so a proxy call that reused the run-id of a run that
+  had already halted (e.g. hit its dollar budget) was minting a fresh, default-budget
+  run for that id and returning `200` instead of `402` — the halt didn't survive the
+  restart. The proxy path (`GetOrCreate`) now consults the store on a cache miss and
+  restores an existing run as-is: a terminal run (budget halt or kill-switch cancel)
+  comes back terminal and keeps refusing work; only a genuinely new id gets a fresh
+  run.
+
 ## [0.4.0] - 2026-06-07
 
 Observability, rounded out: tool-call governance now shows up in your traces, a

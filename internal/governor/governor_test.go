@@ -231,6 +231,43 @@ func TestWithRestoredUsage(t *testing.T) {
 	asHalt(t, r.RecordUsage(200, 0, 0), HaltTokenBudget)
 }
 
+func TestWithRestoredHalt(t *testing.T) {
+	// A run reconstructed as already-halted stays terminal: it refuses all work
+	// with its original reason and its context is dead, regardless of budget. (#29)
+	r := New(context.Background(), Budget{Dollars: 5.0},
+		WithRestoredUsage(Usage{Dollars: 6.0}),
+		WithRestoredHalt(HaltDollarBudget))
+	defer r.Close()
+
+	if !r.Halted() {
+		t.Fatal("restored-halted run should report halted")
+	}
+	asHalt(t, r.CanProceed(), HaltDollarBudget)
+	asHalt(t, r.PreStep(), HaltDollarBudget)
+	asHalt(t, r.RecordUsage(1, 1, 0.01), HaltDollarBudget)
+	select {
+	case <-r.Context().Done():
+	default:
+		t.Fatal("a restored-halted run's context should be cancelled")
+	}
+
+	// A cancel-halted run keeps the cancelled reason even though usage is under the
+	// budget — re-deriving the halt from usage alone could not recover this.
+	c := New(context.Background(), Budget{Dollars: 5.0}, WithRestoredHalt(HaltCancelled))
+	defer c.Close()
+	asHalt(t, c.CanProceed(), HaltCancelled)
+
+	// HaltNone is a no-op: a genuinely running run is unaffected.
+	live := New(context.Background(), Budget{Dollars: 5.0}, WithRestoredHalt(HaltNone))
+	defer live.Close()
+	if live.Halted() {
+		t.Fatal("WithRestoredHalt(HaltNone) must not halt the run")
+	}
+	if err := live.CanProceed(); err != nil {
+		t.Fatalf("a running run should proceed: %v", err)
+	}
+}
+
 func TestConcurrentCancel(t *testing.T) {
 	r := New(context.Background(), Budget{Tokens: 1_000_000_000})
 	defer r.Close()
