@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createServer, type Server, type ServerResponse } from "node:http";
 import { Runtime } from "../src/index";
+import { governMiddleware } from "../src/vercel";
 
 // A tiny in-process mock of the daemon's /v1 API, so the SDK is exercised over
 // real HTTP with no daemon, no keys.
@@ -164,5 +165,55 @@ describe("Runtime", () => {
     await expect(
       rt.resumeRun("does-not-exist", async () => "unreachable"),
     ).rejects.toMatchObject({ name: "APIError", status: 404 });
+  });
+});
+
+describe("governMiddleware (Vercel AI SDK)", () => {
+  it("ticks one governed step per model call and forwards the result", async () => {
+    reset();
+    const rt = new Runtime({ baseUrl });
+    await rt.governedRun({ budget: { loops: 5 } }, async (run) => {
+      const mw = governMiddleware(run);
+      // Call the middleware hooks the way wrapLanguageModel would (params/model
+      // are unused by the adapter; stub them).
+      const gen = await (mw.wrapGenerate as any)({ doGenerate: async () => "GENERATED" });
+      expect(gen).toBe("GENERATED");
+      const str = await (mw.wrapStream as any)({ doStream: async () => "STREAMED" });
+      expect(str).toBe("STREAMED");
+    });
+    expect(state.steps).toBe(2); // two model calls == two steps
+  });
+
+  it("surfaces BudgetExceeded out of a generate call when the loop budget is spent", async () => {
+    reset();
+    state.haltAfter = 1; // the daemon halts the 2nd step
+    const rt = new Runtime({ baseUrl });
+    await expect(
+      rt.governedRun({ budget: { loops: 1 }, cancelOnError: false }, async (run) => {
+        const mw = governMiddleware(run);
+        const doGenerate = async () => "GENERATED";
+        await (mw.wrapGenerate as any)({ doGenerate }); // 1st: ok
+        await (mw.wrapGenerate as any)({ doGenerate }); // 2nd: halted before the model runs
+      }),
+    ).rejects.toMatchObject({ name: "BudgetExceeded", reason: "dollar_budget_exceeded" });
+  });
+
+  it("does not call the model when the step is rejected", async () => {
+    reset();
+    state.haltAfter = 0; // halt immediately
+    const rt = new Runtime({ baseUrl });
+    let modelCalled = false;
+    await rt
+      .governedRun({ cancelOnError: false }, async (run) => {
+        const mw = governMiddleware(run);
+        await (mw.wrapGenerate as any)({
+          doGenerate: async () => {
+            modelCalled = true;
+            return "GENERATED";
+          },
+        });
+      })
+      .catch(() => {});
+    expect(modelCalled).toBe(false); // step() throws first — the model never runs, so no spend
   });
 });

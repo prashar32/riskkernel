@@ -7,8 +7,12 @@ governed runs ergonomic from Node/TypeScript. **No runtime dependencies** — it
 the global `fetch` (Node 20+), the same stdlib-only ethos as the Python SDK.
 
 > **Status:** core client — run control, budgets, crash-resume (`resumeRun`), the
-> governing proxy, and approval gates. Framework adapters (Vercel AI SDK) and npm
-> publishing are tracked in the repo issues (**#81–#82**) — contributions welcome.
+> governing proxy, approval gates, and the Vercel AI SDK adapter. npm publishing is
+> tracked in the repo issues (**#82**) — contributions welcome.
+
+> **No runtime dependencies:** the core client uses only the global `fetch`. The
+> Vercel adapter (`@riskkernel/sdk/vercel`) takes `@ai-sdk/provider` as an *optional*
+> peer, used at compile time only — importing the core never pulls it in.
 
 ## Use
 
@@ -73,6 +77,28 @@ see [`docs/RESUME.md`](../../docs/RESUME.md) for the full model.
 The `/v1` contract is [`api/v1/openapi.yaml`](../../api/v1/openapi.yaml); the
 governance principle is the same as every surface — **the LLM proposes, the
 deterministic Go core disposes.**
+
+## Vercel AI SDK adapter
+
+Govern a [Vercel AI SDK](https://ai-sdk.dev) agent with ~no code change: wrap any
+model with `governMiddleware(run)` and every `generateText` / `streamText` ticks one
+governed step, so the loop/time budget is enforced and a halt surfaces as
+`BudgetExceeded` (not swallowed).
+
+```ts
+import { generateText, wrapLanguageModel } from "ai";
+import { governMiddleware } from "@riskkernel/sdk/vercel";
+
+await rt.governedRun({ budget: { loops: 20, dollars: 1 } }, async (run) => {
+  const { baseUrl, headers } = run.proxyConfig();
+  const openai = createOpenAI({ baseURL: baseUrl, headers });        // cost metered by the proxy
+  const model = wrapLanguageModel({ model: openai("gpt-4o-mini"), middleware: governMiddleware(run) });
+  await generateText({ model, prompt });                            // loops/time enforced by the middleware
+});
+```
+
+Pinned and tested against AI SDK v5 (`ai@^5` / `@ai-sdk/provider@^2`, an optional
+peer). Runnable example: [`examples/vercel-ai-sdk`](../../examples/vercel-ai-sdk).
 
 ## Develop
 
