@@ -1,6 +1,6 @@
 {
   "name": "@riskkernel/sdk",
-  "version": "0.1.0",
+  "version": "0.5.0",
   "description": "Thin TypeScript client for the RiskKernel reliability runtime (Surface 2).",
   "license": "Apache-2.0",
   "author": "Adarsh Prashar",
@@ -48,6 +48,6 @@
     "@ai-sdk/provider": { "optional": true }
   },
   "overrides": {
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.28.1"
   }
 }
