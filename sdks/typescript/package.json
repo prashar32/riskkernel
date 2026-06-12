@@ -6,7 +6,7 @@
   "author": "Adarsh Prashar",
   "repository": {
     "type": "git",
-    "url": "https://github.com/prashar32/riskkernel",
+    "url": "git+https://github.com/prashar32/riskkernel.git",
     "directory": "sdks/typescript"
   },
   "homepage": "https://github.com/prashar32/riskkernel",
