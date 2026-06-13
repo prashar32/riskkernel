@@ -30,6 +30,7 @@ type Server struct {
 	gateway   *gateway.Gateway
 	runs      *runs.Manager
 	approvals *approval.Gate
+	slack     *approval.SlackNotifier // nil when the Slack channel isn't configured
 	mcp       *mcp.Gateway
 	memory    *memory.Reader
 	log       *slog.Logger
@@ -37,8 +38,8 @@ type Server struct {
 
 // New constructs a Server.
 func New(cfg *config.Config, gw *gateway.Gateway, mgr *runs.Manager, gate *approval.Gate,
-	mcpGW *mcp.Gateway, mem *memory.Reader, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, gateway: gw, runs: mgr, approvals: gate, mcp: mcpGW, memory: mem, log: log}
+	slack *approval.SlackNotifier, mcpGW *mcp.Gateway, mem *memory.Reader, log *slog.Logger) *Server {
+	return &Server{cfg: cfg, gateway: gw, runs: mgr, approvals: gate, slack: slack, mcp: mcpGW, memory: mem, log: log}
 }
 
 // Handler returns the root HTTP handler with all routes mounted.
@@ -83,6 +84,11 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("GET /v1/approvals/{id}", s.requireAuth(s.handleGetApproval))
 		// Local admin web page (Surface: human-in-the-loop, pull channel).
 		mux.HandleFunc("GET /admin/approvals", s.requireAuth(s.handleAdminApprovalsPage))
+		// Slack interactivity callback — NOT bearer-authed (Slack can't send the API
+		// token); authenticated instead by the Slack request signature in the handler.
+		if s.slack != nil {
+			mux.HandleFunc("POST /v1/integrations/slack/interactions", s.handleSlackInteraction)
+		}
 	}
 	// Git-native memory layer.
 	if s.memory != nil {

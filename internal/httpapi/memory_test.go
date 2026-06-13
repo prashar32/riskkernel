@@ -34,7 +34,7 @@ func newMemoryServer(t *testing.T) http.Handler {
 	t.Cleanup(func() { _ = store.Close() })
 	log := slog.New(slog.NewTextHandler(io.Discard, nil))
 	mgr := runs.NewManager(governor.Budget{}).WithStore(store, log)
-	srv := New(&config.Config{}, nil, mgr, nil, nil, memory.NewReader(memDir), log)
+	srv := New(&config.Config{}, nil, mgr, nil, nil, nil, memory.NewReader(memDir), log)
 	return srv.Handler()
 }
 

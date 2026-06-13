@@ -36,7 +36,8 @@ type Deps struct {
 	Store     storage.Store
 	Tracer    *otel.Tracer
 	Approvals *approval.Gate
-	MCP       *mcp.Gateway // nil when no upstream is configured
+	Slack     *approval.SlackNotifier // nil when the Slack channel isn't configured
+	MCP       *mcp.Gateway            // nil when no upstream is configured
 	Memory    *memory.Reader
 }
 
@@ -109,10 +110,14 @@ func Build(cfg *config.Config) (*Deps, error) {
 	mgr := runs.NewManager(toGovernorBudget(cfg.DefaultBudget)).WithStore(store, log)
 	gw := gateway.New(registry, mgr, prices, tracer, log)
 
-	var notifier approval.Notifier
-	if wh := approval.NewWebhookNotifier(cfg.Approval.WebhookURL, log); wh != nil {
-		notifier = wh
+	webhook := approval.NewWebhookNotifier(cfg.Approval.WebhookURL, log)
+	slackNotifier := approval.NewSlackNotifier(cfg.Approval.SlackBotToken, cfg.Approval.SlackChannel,
+		cfg.Approval.SlackSigningSecret, log)
+	if slackNotifier != nil {
+		log.Info("slack approval channel enabled", "channel", cfg.Approval.SlackChannel,
+			"interactive", cfg.Approval.SlackSigningSecret != "")
 	}
+	notifier := approval.CombineNotifiers(webhook, slackNotifier)
 	gate := approval.NewGate(store, approval.Policy{DefaultSafe: cfg.Approval.DefaultSafe}, notifier, log)
 
 	var mcpGW *mcp.Gateway
@@ -139,6 +144,7 @@ func Build(cfg *config.Config) (*Deps, error) {
 		Store:     store,
 		Tracer:    tracer,
 		Approvals: gate,
+		Slack:     slackNotifier,
 		MCP:       mcpGW,
 		Memory:    memReader,
 	}, nil
