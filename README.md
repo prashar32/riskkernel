@@ -97,8 +97,15 @@ riskkernel init      # scaffold a .env + a runnable example in the current dir
 riskkernel serve     # start the daemon (reads .env)
 ```
 
-(or `make build` from a clone). Deeper control (loops, checkpoints, approval
-gates) is the Python SDK:
+(or `make build` from a clone). Tab-complete the CLI in your shell:
+
+```bash
+riskkernel completion bash > /etc/bash_completion.d/riskkernel        # bash
+riskkernel completion zsh  > "${fpath[1]}/_riskkernel"                # zsh
+riskkernel completion fish > ~/.config/fish/completions/riskkernel.fish  # fish
+```
+
+Deeper control (loops, checkpoints, approval gates) is the Python SDK:
 
 ```bash
 pip install riskkernel
