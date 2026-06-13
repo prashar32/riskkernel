@@ -82,6 +82,7 @@ Usage:
   riskkernel runs resume <id>   Show a run's resumable state after a crash
   riskkernel audit export <id>  Export a run's cost ledger as JSON
   riskkernel audit tools <id>   Export a run's governed tool calls as JSON
+  riskkernel audit compliance <id>  Auditor-ready OWASP / EU AI Act evidence export
   riskkernel policy validate <file>          Validate a riskkernel.yaml policy file
   riskkernel policy dry-run <file> <run-id>  Show what a policy would gate/halt on a run
   riskkernel approvals list     List pending human-in-the-loop approvals
