@@ -10,6 +10,12 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Reusable policy bundles.** Register a named bundle of a default budget, a tool
+  allowlist, and approval rules with `POST /v1/policies` (re-registering the same
+  name updates it; `GET /v1/policies` and `GET /v1/policies/{name}` read them back),
+  then a run references it by name: `POST /v1/runs` with `policyRef` applies the
+  bundle's budget, and an inline `budget` overrides it field-by-field. Deterministic
+  config persisted in the SQLite state — the seam the `AgentProfile` model builds on.
 - **Approve from Slack.** A new push channel for the human-in-the-loop gate: set
   `RISKKERNEL_APPROVAL_SLACK_BOT_TOKEN` + `RISKKERNEL_APPROVAL_SLACK_CHANNEL` and a
   gated, side-effecting tool call is posted to the channel with **Approve / Deny**

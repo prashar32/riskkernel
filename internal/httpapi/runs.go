@@ -26,9 +26,10 @@ type budgetBody struct {
 }
 
 type createRunBody struct {
-	Name     string            `json:"name"`
-	Budget   *budgetBody       `json:"budget"`
-	Metadata map[string]string `json:"metadata"`
+	Name      string            `json:"name"`
+	Budget    *budgetBody       `json:"budget"`
+	PolicyRef string            `json:"policyRef"`
+	Metadata  map[string]string `json:"metadata"`
 }
 
 // handleCreateRun implements POST /v1/runs.
@@ -39,12 +40,49 @@ func (s *Server) handleCreateRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	opts := runs.CreateOptions{Name: body.Name, Metadata: body.Metadata}
-	if body.Budget != nil {
-		opts.Budget = &governor.Budget{
-			Tokens: body.Budget.Tokens, Dollars: body.Budget.Dollars,
-			Loops: body.Budget.Loops, Seconds: body.Budget.Seconds,
+
+	// A referenced policy bundle supplies the run's default budget; an inline
+	// budget then overrides it field-by-field (a non-zero inline field wins).
+	var budget *governor.Budget
+	if body.PolicyRef != "" {
+		store := s.runs.Store()
+		if store == nil {
+			httpx.WriteError(w, http.StatusServiceUnavailable, "no_store", "policyRef requires a durable store")
+			return
+		}
+		p, err := store.GetPolicy(r.Context(), body.PolicyRef)
+		if err != nil {
+			if errors.Is(err, storage.ErrNotFound) {
+				httpx.WriteError(w, http.StatusBadRequest, "unknown_policy", "no policy named "+body.PolicyRef)
+				return
+			}
+			httpx.WriteError(w, http.StatusInternalServerError, "internal_error", err.Error())
+			return
+		}
+		budget = &governor.Budget{
+			Tokens: p.BudgetTokens, Dollars: p.BudgetDollars,
+			Loops: p.BudgetLoops, Seconds: p.BudgetSeconds,
 		}
 	}
+	if body.Budget != nil {
+		if budget == nil {
+			budget = &governor.Budget{}
+		}
+		if body.Budget.Tokens != 0 {
+			budget.Tokens = body.Budget.Tokens
+		}
+		if body.Budget.Dollars != 0 {
+			budget.Dollars = body.Budget.Dollars
+		}
+		if body.Budget.Loops != 0 {
+			budget.Loops = body.Budget.Loops
+		}
+		if body.Budget.Seconds != 0 {
+			budget.Seconds = body.Budget.Seconds
+		}
+	}
+	opts.Budget = budget
+
 	run := s.runs.Create(opts)
 	httpx.WriteJSON(w, http.StatusCreated, runViewFromManager(run))
 }

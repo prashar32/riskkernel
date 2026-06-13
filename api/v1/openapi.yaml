@@ -403,6 +403,44 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/Unauthorized'
+    get:
+      tags: [policies]
+      operationId: listPolicies
+      summary: List policy bundles
+      responses:
+        '200':
+          description: The registered policy bundles, newest first.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Policy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/policies/{name}:
+    get:
+      tags: [policies]
+      operationId: getPolicy
+      summary: Get a policy bundle by name
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: The policy bundle.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Policy'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
 components:
   securitySchemes:
