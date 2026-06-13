@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -60,6 +61,7 @@ type anthropicReq struct {
 	System      string             `json:"system,omitempty"`
 	Messages    []anthropicMessage `json:"messages"`
 	Temperature *float64           `json:"temperature,omitempty"`
+	Stream      bool               `json:"stream,omitempty"`
 }
 
 type anthropicMessage struct {
@@ -94,30 +96,10 @@ func (a *Anthropic) Chat(ctx context.Context, req Request) (*Response, error) {
 	if a.apiKey == "" {
 		return nil, fmt.Errorf("anthropic: missing API key")
 	}
-	maxTokens := req.MaxTokens
-	if maxTokens <= 0 {
-		maxTokens = defaultMaxTokens
-	}
-
-	// Anthropic takes the system prompt as a top-level field. If the caller put a
-	// system message in Messages, lift it out; otherwise use req.System.
-	system := req.System
-	msgs := make([]anthropicMessage, 0, len(req.Messages))
-	for _, m := range req.Messages {
-		if m.Role == RoleSystem {
-			if system == "" {
-				system = m.Content
-			} else {
-				system = system + "\n\n" + m.Content
-			}
-			continue
-		}
-		msgs = append(msgs, anthropicMessage{Role: string(m.Role), Content: m.Content})
-	}
-
+	system, msgs := splitSystem(req)
 	body, err := json.Marshal(anthropicReq{
 		Model:       req.Model,
-		MaxTokens:   maxTokens,
+		MaxTokens:   anthropicMaxTokens(req),
 		System:      system,
 		Messages:    msgs,
 		Temperature: req.Temperature,
@@ -180,4 +162,163 @@ func (a *Anthropic) Chat(ctx context.Context, req Request) (*Response, error) {
 			CompletionTokens: out.Usage.OutputTokens,
 		},
 	}, nil
+}
+
+// anthropicMaxTokens returns the request's MaxTokens, falling back to the default
+// (Anthropic requires the field to be present and positive).
+func anthropicMaxTokens(req Request) int {
+	if req.MaxTokens > 0 {
+		return req.MaxTokens
+	}
+	return defaultMaxTokens
+}
+
+// splitSystem lifts any system message out of req.Messages and merges it with
+// req.System — Anthropic takes the system prompt as a top-level field — returning
+// the system prompt and the remaining conversation messages.
+func splitSystem(req Request) (string, []anthropicMessage) {
+	system := req.System
+	msgs := make([]anthropicMessage, 0, len(req.Messages))
+	for _, m := range req.Messages {
+		if m.Role == RoleSystem {
+			if system == "" {
+				system = m.Content
+			} else {
+				system = system + "\n\n" + m.Content
+			}
+			continue
+		}
+		msgs = append(msgs, anthropicMessage{Role: string(m.Role), Content: m.Content})
+	}
+	return system, msgs
+}
+
+// ChatStream implements the Streamer interface: a streaming completion that yields
+// Anthropic's raw SSE events verbatim (so the client receives authentic Anthropic
+// SSE) while accumulating token usage for metering. Usage is assembled from the
+// stream's own accounting: message_start carries input_tokens (and the model),
+// message_delta carries the final cumulative output_tokens.
+func (a *Anthropic) ChatStream(ctx context.Context, req Request) (ChatStream, error) {
+	if a.apiKey == "" {
+		return nil, fmt.Errorf("anthropic: missing API key")
+	}
+
+	system, msgs := splitSystem(req)
+	body, err := json.Marshal(anthropicReq{
+		Model:       req.Model,
+		MaxTokens:   anthropicMaxTokens(req),
+		System:      system,
+		Messages:    msgs,
+		Temperature: req.Temperature,
+		Stream:      true,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: marshaling stream request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, a.baseURL+"/v1/messages", bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("anthropic: building stream request: %w", err)
+	}
+	httpReq.Header.Set("content-type", "application/json")
+	httpReq.Header.Set("x-api-key", a.apiKey)
+	httpReq.Header.Set("anthropic-version", anthropicAPIVersion)
+	httpReq.Header.Set("accept", "text/event-stream")
+
+	resp, err := a.http.Do(httpReq)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		return nil, fmt.Errorf("anthropic: stream request failed: %w", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<16))
+		_ = resp.Body.Close()
+		var apiErr anthropicError
+		if json.Unmarshal(raw, &apiErr) == nil && apiErr.Error.Message != "" {
+			return nil, fmt.Errorf("anthropic: %s (%s, http %d)", apiErr.Error.Message, apiErr.Error.Type, resp.StatusCode)
+		}
+		return nil, fmt.Errorf("anthropic: http %d: %s", resp.StatusCode, strings.TrimSpace(string(raw)))
+	}
+	return &antStream{body: resp.Body, r: bufio.NewReader(resp.Body)}, nil
+}
+
+// antStream forwards Anthropic's SSE bytes line-by-line (verbatim, so the client
+// sees authentic Anthropic events) while sniffing the data lines for the model and
+// token usage.
+type antStream struct {
+	body  io.ReadCloser
+	r     *bufio.Reader
+	usage Usage
+	model string
+}
+
+// Recv returns the next raw SSE line (including its trailing newline) to forward,
+// or io.EOF at the end. Usage/model are updated from data lines as they pass.
+func (s *antStream) Recv() ([]byte, error) {
+	line, err := s.r.ReadBytes('\n')
+	if len(line) > 0 {
+		s.sniff(line)
+	}
+	return line, err
+}
+
+// sniff parses a `data: {json}` line for the model (message_start) and token usage
+// (input_tokens on message_start, final output_tokens on message_delta), ignoring
+// `event:` lines, blanks, and content deltas.
+func (s *antStream) sniff(line []byte) {
+	t := bytes.TrimSpace(line)
+	if !bytes.HasPrefix(t, sseData) {
+		return
+	}
+	payload := bytes.TrimSpace(t[len(sseData):])
+	if len(payload) == 0 {
+		return
+	}
+	var ev struct {
+		Type    string `json:"type"`
+		Message *struct {
+			Model string          `json:"model"`
+			Usage *antStreamUsage `json:"usage"`
+		} `json:"message"`
+		Usage *antStreamUsage `json:"usage"`
+	}
+	if json.Unmarshal(payload, &ev) != nil {
+		return
+	}
+	switch ev.Type {
+	case "message_start":
+		if ev.Message == nil {
+			return
+		}
+		if ev.Message.Model != "" {
+			s.model = ev.Message.Model
+		}
+		if u := ev.Message.Usage; u != nil {
+			s.usage.PromptTokens = u.InputTokens
+			s.usage.CompletionTokens = u.OutputTokens
+		}
+	case "message_delta":
+		// message_delta carries the running (final, at stream end) output token
+		// count, and on cache paths an updated input count.
+		if u := ev.Usage; u != nil {
+			if u.OutputTokens > 0 {
+				s.usage.CompletionTokens = u.OutputTokens
+			}
+			if u.InputTokens > 0 {
+				s.usage.PromptTokens = u.InputTokens
+			}
+		}
+	}
+}
+
+func (s *antStream) Usage() Usage  { return s.usage }
+func (s *antStream) Model() string { return s.model }
+func (s *antStream) Close() error  { return s.body.Close() }
+
+// antStreamUsage is the usage block carried on Anthropic stream events.
+type antStreamUsage struct {
+	InputTokens  int64 `json:"input_tokens"`
+	OutputTokens int64 `json:"output_tokens"`
 }

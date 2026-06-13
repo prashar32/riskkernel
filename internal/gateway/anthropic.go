@@ -58,13 +58,6 @@ func (g *Gateway) handleMessages(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON: "+err.Error())
 		return
 	}
-	if req.Stream {
-		// The OpenAI-compatible /v1/chat/completions path streams; native Anthropic
-		// /v1/messages streaming is not wired yet (its SSE event format differs).
-		httpx.WriteError(w, http.StatusNotImplemented, "streaming_unsupported",
-			"streaming is not yet supported on /v1/messages; set stream:false (or use /v1/chat/completions)")
-		return
-	}
 	if req.Model == "" || len(req.Messages) == 0 {
 		httpx.WriteError(w, http.StatusBadRequest, "bad_request", "model and messages are required")
 		return
@@ -85,6 +78,15 @@ func (g *Gateway) handleMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	run := g.resolveRun(r)
+
+	// Streaming: forward Anthropic's SSE events verbatim while metering them. The
+	// budget is enforced before the stream opens; the run's context (time budget /
+	// kill switch / client disconnect) cuts a live stream.
+	if req.Stream {
+		g.streamCall(w, r, run, preq)
+		return
+	}
+
 	resp, meta, gwErr := g.governedCall(r, run, preq)
 	if gwErr != nil {
 		gwErr.write(w)
