@@ -178,19 +178,19 @@ func OpenStore(cfg *config.Config, log *slog.Logger) (storage.Store, error) {
 	return store, nil
 }
 
-// BuildRegistry constructs the provider registry from config. Anthropic and
-// OpenAI are implemented natively; Bedrock/Ollama are stubs config can reference.
+// BuildRegistry constructs the provider registry from config. Anthropic, OpenAI,
+// and Ollama are implemented natively; Bedrock is a stub config can reference.
 // The default provider must be usable.
 func BuildRegistry(cfg *config.Config) (*provider.Registry, error) {
 	// Anthropic is always registered (native provider). When the key is absent the
 	// daemon still boots — health and routing work — and only an actual Chat call
-	// returns a clear "missing API key" error. OpenAI is registered (native) when a
-	// key is present; Bedrock/Ollama are stubs config can name before they're built
-	// out.
+	// returns a clear "missing API key" error. Ollama is native and key-free
+	// (local models); OpenAI is registered (native) when a key is present; Bedrock
+	// is a stub config can name before it's built out.
 	ps := []provider.Provider{
 		provider.NewAnthropic(cfg.AnthropicAPIKey).WithBaseURL(cfg.AnthropicBaseURL),
 		provider.NewBedrock(),
-		provider.NewOllama("http://localhost:11434"),
+		provider.NewOllama(cfg.OllamaBaseURL), // empty → local default
 	}
 	if cfg.OpenAIAPIKey != "" {
 		ps = append(ps, provider.NewOpenAI(cfg.OpenAIAPIKey).WithBaseURL(cfg.OpenAIBaseURL))

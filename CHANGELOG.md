@@ -9,6 +9,14 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+### Added
+- **Native Ollama provider.** Run local models through RiskKernel — set
+  `RISKKERNEL_DEFAULT_PROVIDER=ollama` (key-free) and budgets, the proxy, the audit
+  trail, and crash-resume all work the same as for a hosted provider. Talks to
+  Ollama's `/api/chat`; token usage comes from `prompt_eval_count` / `eval_count`.
+  Point it at a remote server with `RISKKERNEL_OLLAMA_BASE_URL` (default
+  `http://localhost:11434`).
+
 ## [0.6.0] - 2026-06-13
 
 Governance and compliance. Approvals can route to **Slack**, policy is now
