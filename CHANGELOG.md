@@ -10,6 +10,11 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Published enforcement overhead + a public roadmap.** The deterministic
+  enforcement decision is measured at ~150 ns and **zero heap allocations** per
+  governed call (`go test -bench ./internal/governor`); methodology and numbers are
+  in [`docs/PERFORMANCE.md`](docs/PERFORMANCE.md), and [`ROADMAP.md`](ROADMAP.md) lays
+  out what's shipped and where it's heading.
 - **Compliance evidence export.** `riskkernel audit compliance <run-id>` produces an
   auditor-ready report: the controls RiskKernel recorded (budget enforcement, human
   oversight, tool governance, record-keeping) mapped to the relevant OWASP and EU AI
