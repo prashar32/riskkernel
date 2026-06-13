@@ -57,6 +57,8 @@ func main() {
 		err = runDoctor(args)
 	case "healthcheck":
 		err = runHealthcheck(args)
+	case "completion":
+		err = runCompletion(args)
 	case "version", "--version", "-v":
 		fmt.Println("riskkernel", version.String())
 	case "help", "--help", "-h":
@@ -94,6 +96,7 @@ Usage:
   riskkernel memory show <name> [namespace]         Print a memory file
   riskkernel doctor             Diagnose a setup (config, store, provider, policy)
   riskkernel healthcheck        Probe /healthz (used by the Docker HEALTHCHECK)
+  riskkernel completion <shell> Print a shell completion script (bash|zsh|fish)
   riskkernel version            Print build identity
   riskkernel help               Show this help
 
