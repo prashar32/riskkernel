@@ -9,6 +9,15 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-13
+
+Governance and compliance. Approvals can route to **Slack**, policy is now
+**code** — reusable bundles via `POST /v1/policies` or a reviewed `riskkernel.yaml`,
+with a dry-run against recorded runs — and a new **compliance evidence export** maps
+RiskKernel's recorded controls to OWASP / EU AI Act references with a tamper-evident
+event log. Plus the published enforcement-overhead number (~150 ns, zero allocations)
+and a public roadmap. No breaking API changes; forward-compatible with v0.5.x state.
+
 ### Added
 - **Published enforcement overhead + a public roadmap.** The deterministic
   enforcement decision is measured at ~150 ns and **zero heap allocations** per
@@ -332,7 +341,8 @@ and a memory you own, in one self-hosted binary. Three integration surfaces
   (keyless) on each `v*` tag; GoReleaser binaries + checksums + GitHub release;
   `govulncheck` + CodeQL in CI. One-line `docker run` quickstart.
 
-[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/prashar32/riskkernel/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/prashar32/riskkernel/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/prashar32/riskkernel/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/prashar32/riskkernel/compare/v0.2.0...v0.3.0
