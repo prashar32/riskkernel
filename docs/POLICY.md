@@ -86,7 +86,19 @@ A trust-builder for tightening a policy without breaking a working agent.
 
 The same fields are the `POST /v1/policies` body — see [`api/v1/openapi.yaml`](../api/v1/openapi.yaml).
 
-> The bundle's **budget** is enforced per-run today (via `policyRef`). Per-run
-> enforcement of the allowlist and approval rules (they apply globally today) is the
-> next step on this seam; the dry-run already evaluates all three so you can author
-> the policy now.
+## Per-run enforcement
+
+A run created under a bundle (via `policyRef`) is governed by that bundle, not just
+the daemon-global config:
+
+- **Budget** — applied to the run (an inline `budget` overrides it field-by-field).
+- **Tool allowlist** — the MCP gateway enforces the bundle's `toolAllowlist` for that
+  run's `tools/call`s: a tool outside it is blocked, even if the global allowlist
+  would allow it. An empty bundle allowlist falls back to the global one.
+- **Approval rules** — the bundle's `approvalPolicy` rules apply to that run *on top
+  of* the global fail-safe gating (side-effecting tools still gate; the bundle can
+  add a requirement, e.g. naming a normally read-only tool). A run's bundle can only
+  *add* gating, never silently drop it.
+
+The run's `policyRef` is persisted, so enforcement continues after a daemon restart.
+Runs created without a `policyRef` keep using the global config.

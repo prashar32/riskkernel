@@ -128,8 +128,8 @@ func (s *SQLite) UpsertRun(ctx context.Context, r RunRecord) error {
 		INSERT INTO runs (id, name, status, halt_reason,
 			budget_tokens, budget_dollars, budget_loops, budget_seconds,
 			usage_prompt_tokens, usage_completion_tokens, usage_dollars, usage_loops,
-			metadata, created_at, updated_at)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+			metadata, created_at, updated_at, policy_ref)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
 		ON CONFLICT(id) DO UPDATE SET
 			name=excluded.name, status=excluded.status, halt_reason=excluded.halt_reason,
 			budget_tokens=excluded.budget_tokens, budget_dollars=excluded.budget_dollars,
@@ -141,7 +141,7 @@ func (s *SQLite) UpsertRun(ctx context.Context, r RunRecord) error {
 		r.ID, r.Name, r.Status, r.HaltReason,
 		r.BudgetTokens, r.BudgetDollars, r.BudgetLoops, r.BudgetSeconds,
 		r.UsagePromptTokens, r.UsageCompletionTokens, r.UsageDollars, r.UsageLoops,
-		meta, fmtTime(r.CreatedAt), fmtTime(r.UpdatedAt))
+		meta, fmtTime(r.CreatedAt), fmtTime(r.UpdatedAt), r.PolicyRef)
 	if err != nil {
 		return fmt.Errorf("storage: upsert run: %w", err)
 	}
@@ -149,12 +149,8 @@ func (s *SQLite) UpsertRun(ctx context.Context, r RunRecord) error {
 }
 
 func (s *SQLite) GetRun(ctx context.Context, id string) (RunRecord, error) {
-	row := s.db.QueryRowContext(ctx, `
-		SELECT id, name, status, halt_reason,
-			budget_tokens, budget_dollars, budget_loops, budget_seconds,
-			usage_prompt_tokens, usage_completion_tokens, usage_dollars, usage_loops,
-			metadata, created_at, updated_at
-		FROM runs WHERE id = ?`, id)
+	row := s.db.QueryRowContext(ctx,
+		`SELECT `+runColumns+` FROM runs WHERE id = ?`, id)
 	r, err := scanRun(row)
 	if err == sql.ErrNoRows {
 		return RunRecord{}, ErrNotFound
@@ -163,12 +159,8 @@ func (s *SQLite) GetRun(ctx context.Context, id string) (RunRecord, error) {
 }
 
 func (s *SQLite) ListRuns(ctx context.Context) ([]RunRecord, error) {
-	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, name, status, halt_reason,
-			budget_tokens, budget_dollars, budget_loops, budget_seconds,
-			usage_prompt_tokens, usage_completion_tokens, usage_dollars, usage_loops,
-			metadata, created_at, updated_at
-		FROM runs ORDER BY created_at DESC`)
+	rows, err := s.db.QueryContext(ctx,
+		`SELECT `+runColumns+` FROM runs ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, fmt.Errorf("storage: list runs: %w", err)
 	}
@@ -428,7 +420,7 @@ func scanRun(row rowScanner) (RunRecord, error) {
 	if err := row.Scan(&r.ID, &r.Name, &r.Status, &r.HaltReason,
 		&r.BudgetTokens, &r.BudgetDollars, &r.BudgetLoops, &r.BudgetSeconds,
 		&r.UsagePromptTokens, &r.UsageCompletionTokens, &r.UsageDollars, &r.UsageLoops,
-		&meta, &created, &updated); err != nil {
+		&meta, &created, &updated, &r.PolicyRef); err != nil {
 		return RunRecord{}, err
 	}
 	r.Metadata = unmarshalMeta(meta)

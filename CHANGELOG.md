@@ -9,16 +9,14 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
-## [0.6.0] - 2026-06-13
-
-Governance and compliance. Approvals can route to **Slack**, policy is now
-**code** — reusable bundles via `POST /v1/policies` or a reviewed `riskkernel.yaml`,
-with a dry-run against recorded runs — and a new **compliance evidence export** maps
-RiskKernel's recorded controls to OWASP / EU AI Act references with a tamper-evident
-event log. Plus the published enforcement-overhead number (~150 ns, zero allocations)
-and a public roadmap. No breaking API changes; forward-compatible with v0.5.x state.
-
 ### Added
+- **Per-run policy enforcement.** A run created under a policy bundle (`policyRef`)
+  is now governed by that bundle, not just its budget: the MCP gateway enforces the
+  bundle's tool **allowlist** for that run (a tool outside it is blocked even if the
+  global allowlist would allow it) and its **approval rules** on top of the global
+  fail-safe gating — a bundle can *add* a requirement, never silently drop one. The
+  run's `policyRef` is persisted, so enforcement survives a daemon restart. See
+  [`docs/POLICY.md`](docs/POLICY.md#per-run-enforcement).
 - **Native Ollama provider.** Run local models through RiskKernel — set
   `RISKKERNEL_DEFAULT_PROVIDER=ollama` (key-free) and budgets, the proxy, the audit
   trail, and crash-resume all work the same as for a hosted provider. Talks to

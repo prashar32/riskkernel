@@ -363,3 +363,28 @@ func TestManager_GetOrCreateRestoresCancelledRun(t *testing.T) {
 		t.Fatalf("restored run = status %q reason %q; want cancelled", v.Status, v.HaltReason)
 	}
 }
+
+// A run's policyRef persists and is restored when the run is reloaded from the
+// store after a restart — so the MCP gateway can enforce the run's bundle even for
+// a run created before the daemon restarted. (#28 per-run enforcement)
+func TestManager_PolicyRefPersistsAndReloads(t *testing.T) {
+	store, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "policyref.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	noop := slog.New(slog.NewTextHandler(noopWriter{}, nil))
+
+	mA := NewManager(governor.Budget{}).WithStore(store, noop)
+	rA := mA.Create(CreateOptions{ID: "with-policy", PolicyRef: "developer"})
+	if rA.PolicyRef != "developer" {
+		t.Fatalf("create: policyRef = %q", rA.PolicyRef)
+	}
+
+	// Restart: a fresh manager over the same store restores the run via GetOrCreate.
+	mB := NewManager(governor.Budget{}).WithStore(store, noop)
+	rB := mB.GetOrCreate("with-policy")
+	if rB.PolicyRef != "developer" {
+		t.Fatalf("reloaded policyRef = %q, want developer", rB.PolicyRef)
+	}
+}

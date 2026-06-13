@@ -10,7 +10,7 @@ import (
 const runColumns = `id, name, status, halt_reason,
 	budget_tokens, budget_dollars, budget_loops, budget_seconds,
 	usage_prompt_tokens, usage_completion_tokens, usage_dollars, usage_loops,
-	metadata, created_at, updated_at`
+	metadata, created_at, updated_at, policy_ref`
 
 // ListRunsByStatus returns runs in the given lifecycle status, newest first.
 func (s *SQLite) ListRunsByStatus(ctx context.Context, status string) ([]RunRecord, error) {

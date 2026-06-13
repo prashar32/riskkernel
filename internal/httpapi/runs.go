@@ -39,7 +39,7 @@ func (s *Server) handleCreateRun(w http.ResponseWriter, r *http.Request) {
 		httpx.WriteError(w, http.StatusBadRequest, "bad_request", err.Error())
 		return
 	}
-	opts := runs.CreateOptions{Name: body.Name, Metadata: body.Metadata}
+	opts := runs.CreateOptions{Name: body.Name, PolicyRef: body.PolicyRef, Metadata: body.Metadata}
 
 	// A referenced policy bundle supplies the run's default budget; an inline
 	// budget then overrides it field-by-field (a non-zero inline field wins).
