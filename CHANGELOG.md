@@ -10,6 +10,11 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **`riskkernel doctor`.** Diagnose a setup before relying on it: a checklist over
+  the data dir (creatable/writable), the default provider and its credential, the
+  default budget (flags an explicitly-unlimited one), the API token, a configured
+  `riskkernel.yaml` (validated), and whether the daemon is reachable. Exits non-zero
+  on a hard failure so it's CI-friendly.
 - **Per-run policy enforcement.** A run created under a policy bundle (`policyRef`)
   is now governed by that bundle, not just its budget: the MCP gateway enforces the
   bundle's tool **allowlist** for that run (a tool outside it is blocked even if the
