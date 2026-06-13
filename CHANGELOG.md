@@ -18,6 +18,19 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   checked pre-stream and recorded after (so the next call is refused if it went
   over). A provider without streaming, and the Anthropic `/v1/messages` endpoint,
   return a clear 501 rather than silently buffering.
+- **Prometheus `/metrics` endpoint.** Scrape the daemon's own state: governed runs
+  by status, halted runs by halt reason, total spend in dollars and tokens, priced
+  model calls, and the pending-approval queue depth. Plain Prometheus text
+  exposition (version 0.0.4), authenticated like the rest of the API, served when a
+  durable store is configured. It's local metrics you scrape — no phone-home, no
+  prompt content, no PII — and it's hand-rolled, so it adds no dependency. See
+  [`docs/METRICS.md`](docs/METRICS.md) for the metric list and an example scrape config.
+- **Shell completions.** `riskkernel completion <bash|zsh|fish>` prints a completion
+  script to stdout — tab-complete the top-level commands and their sub-subcommands
+  (`runs list|resume`, `audit export|tools|compliance`, `policy validate|dry-run`,
+  `approvals list|approve|deny`, `memory list|show`). Hand-written, no new
+  dependency; the `rk` alias is completed too. Each shell's script carries its own
+  one-line install hint.
 - **`riskkernel doctor`.** Diagnose a setup before relying on it: a checklist over
   the data dir (creatable/writable), the default provider and its credential, the
   default budget (flags an explicitly-unlimited one), the API token, a configured
