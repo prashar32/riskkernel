@@ -113,10 +113,15 @@ func (g *Gateway) handle(w http.ResponseWriter, r *http.Request) {
 	run := g.resolveRun(r)
 	stepIdx := run.View().Usage.Loops
 
+	// If the run was created under a policy bundle (policyRef), that bundle's tool
+	// allowlist and approval rules govern this call — not just the daemon-global
+	// config. Bundle missing/unknown → fall back to the global config.
+	bundle := g.runPolicy(r.Context(), run)
+
 	// 1) Allowlist (deterministic). A blocked attempt is recorded too — a refused
 	// tool call is part of the audit trail, not a silent drop.
-	if !g.allowed(tool) {
-		g.log.Warn("mcp tool blocked by allowlist", "tool", tool)
+	if !g.allowedFor(tool, bundle) {
+		g.log.Warn("mcp tool blocked by allowlist", "tool", tool, "policy", run.PolicyRef)
 		g.recordToolCall(r.Context(), start, run.ID, stepIdx, tool, "", params.Arguments, "blocked")
 		writeRPCError(w, req.ID, -32001, "tool not allowed by policy: "+tool)
 		return
@@ -124,14 +129,31 @@ func (g *Gateway) handle(w http.ResponseWriter, r *http.Request) {
 
 	sideEffect := g.sideEffect(tool)
 
-	// 2) Approval gate for side-effecting tools (blocks until resolved or timeout).
-	if sideEffect != "" {
+	// 2) Approval gate. Side-effecting tools gate under the global policy by
+	// default; a run's bundle can ADD a requirement (e.g. naming a normally
+	// read-only tool), so consult the bundle's rules too.
+	needsApproval := sideEffect != ""
+	var bundlePol approval.Policy
+	if bundle != nil {
+		bundlePol = bundlePolicy(bundle)
+		if bundlePol.Requires(tool, sideEffect) {
+			needsApproval = true
+		}
+	}
+	if needsApproval {
 		ctx, cancel := context.WithTimeout(r.Context(), g.approvalTimeout)
 		defer cancel()
-		decision, _, aerr := g.gate.Request(ctx, approval.Request{
+		areq := approval.Request{
 			RunID: run.ID, StepIndex: stepIdx, Tool: tool,
 			SideEffect: sideEffect, Arguments: params.Arguments,
-		})
+		}
+		var decision approval.Decision
+		var aerr error
+		if bundle != nil {
+			decision, _, aerr = g.gate.RequestUnder(ctx, areq, bundlePol)
+		} else {
+			decision, _, aerr = g.gate.Request(ctx, areq) // daemon-global policy
+		}
 		if aerr != nil {
 			g.recordToolCall(r.Context(), start, run.ID, stepIdx, tool, sideEffect, params.Arguments, "timeout")
 			writeRPCError(w, req.ID, -32002, "approval timed out or run cancelled for tool: "+tool)
@@ -149,12 +171,38 @@ func (g *Gateway) handle(w http.ResponseWriter, r *http.Request) {
 	g.forward(w, r, body)
 }
 
-// allowed reports whether the tool passes the allowlist (empty = allow all).
-func (g *Gateway) allowed(tool string) bool {
-	if len(g.allow) == 0 {
+// runPolicy returns the policy bundle a run was created under, or nil if the run
+// has no policyRef, there's no store, or the bundle is unknown (fall back to the
+// daemon-global config).
+func (g *Gateway) runPolicy(ctx context.Context, run *runs.Run) *storage.PolicyRecord {
+	if run.PolicyRef == "" || g.store == nil {
+		return nil
+	}
+	p, err := g.store.GetPolicy(ctx, run.PolicyRef)
+	if err != nil {
+		if !errors.Is(err, storage.ErrNotFound) {
+			g.log.Error("mcp policy lookup failed", "run", run.ID, "policy", run.PolicyRef, "err", err)
+		}
+		return nil
+	}
+	return &p
+}
+
+// allowedFor reports whether the tool passes the effective allowlist: the run's
+// bundle allowlist when it has one, else the daemon-global allowlist (empty = all).
+func (g *Gateway) allowedFor(tool string, bundle *storage.PolicyRecord) bool {
+	allow := g.allow
+	if bundle != nil && len(bundle.ToolAllowlist) > 0 {
+		allow = bundle.ToolAllowlist
+	}
+	return matchAllow(allow, tool)
+}
+
+func matchAllow(allow []string, tool string) bool {
+	if len(allow) == 0 {
 		return true
 	}
-	for _, pat := range g.allow {
+	for _, pat := range allow {
 		if pat == tool {
 			return true
 		}
@@ -163,6 +211,17 @@ func (g *Gateway) allowed(tool string) bool {
 		}
 	}
 	return false
+}
+
+// bundlePolicy is the run bundle's approval policy. DefaultSafe stays on: a run's
+// bundle can ADD approval requirements but never silently drop the fail-closed
+// gating of side-effecting tools.
+func bundlePolicy(bundle *storage.PolicyRecord) approval.Policy {
+	rules := make([]approval.Rule, 0, len(bundle.ApprovalRules))
+	for _, r := range bundle.ApprovalRules {
+		rules = append(rules, approval.Rule{Tool: r.Tool, SideEffect: r.SideEffect})
+	}
+	return approval.Policy{RequireFor: rules, DefaultSafe: true}
 }
 
 // sideEffect returns "" for read-only tools (no approval) and "tool" otherwise,

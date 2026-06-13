@@ -245,3 +245,105 @@ func TestToolCallEmitsSpan(t *testing.T) {
 		t.Fatalf("tool span attrs = %v", a)
 	}
 }
+
+// --- per-run policy enforcement (#28 follow-on) ---
+
+// newPolicyGateway is like newTestGateway but returns the store and manager (to
+// seed a policy bundle + a run) and uses a short approval timeout so a gated call
+// fails fast instead of waiting the full window.
+func newPolicyGateway(t *testing.T, globalAllow, readonly []string) (*Gateway, storage.Store, *runs.Manager, *int32) {
+	t.Helper()
+	var hits int32
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&hits, 1)
+		_, _ = io.ReadAll(r.Body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"ok"}]}}`))
+	}))
+	t.Cleanup(upstream.Close)
+
+	store, err := storage.OpenSQLite(filepath.Join(t.TempDir(), "mcp-policy.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = store.Close() })
+	log := slog.New(slog.NewTextHandler(discard{}, nil))
+	gate := approval.NewGate(store, approval.Policy{DefaultSafe: true}, nil, log)
+	mgr := runs.NewManager(governor.Budget{}).WithStore(store, log)
+	g := New(upstream.URL, globalAllow, readonly, gate, mgr, store, otel.Disabled(), 200*time.Millisecond, log)
+	return g, store, mgr, &hits
+}
+
+func toolsCallFor(runID, tool string) *http.Request {
+	r := httptest.NewRequest(http.MethodPost, "/mcp",
+		strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"`+tool+`"}}`))
+	r.Header.Set(HeaderRunID, runID)
+	r.Header.Set("Content-Type", "application/json")
+	return r
+}
+
+func TestPerRunPolicyAllowlist(t *testing.T) {
+	// Global allowlist is empty (allow-all), but the run's bundle restricts to github.
+	g, store, mgr, hits := newPolicyGateway(t, nil, []string{"mcp://github"})
+	ctx := context.Background()
+	if err := store.UpsertPolicy(ctx, storage.PolicyRecord{
+		Name: "restricted", ToolAllowlist: []string{"mcp://github"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	mgr.Create(runs.CreateOptions{ID: "scoped", PolicyRef: "restricted"})
+
+	// A tool outside the bundle's allowlist is blocked, even though the global
+	// allowlist would allow everything.
+	w := httptest.NewRecorder()
+	g.handle(w, toolsCallFor("scoped", "mcp://shell"))
+	if e := rpcError(t, w); e == nil || !strings.Contains(e["message"].(string), "not allowed") {
+		t.Fatalf("shell should be blocked by the run's bundle allowlist, got %v", e)
+	}
+	if atomic.LoadInt32(hits) != 0 {
+		t.Fatal("a blocked call must not reach the upstream")
+	}
+
+	// A tool the bundle allows (and that is read-only, so no approval) is forwarded.
+	w = httptest.NewRecorder()
+	g.handle(w, toolsCallFor("scoped", "mcp://github"))
+	if e := rpcError(t, w); e != nil {
+		t.Fatalf("github is allowed by the bundle; got error %v", e)
+	}
+	if atomic.LoadInt32(hits) != 1 {
+		t.Fatalf("allowed call should reach upstream, hits=%d", atomic.LoadInt32(hits))
+	}
+
+	// A run WITHOUT a bundle falls back to the global allow-all: github forwards too.
+	mgr.Create(runs.CreateOptions{ID: "unscoped"})
+	w = httptest.NewRecorder()
+	g.handle(w, toolsCallFor("unscoped", "mcp://github"))
+	if e := rpcError(t, w); e != nil {
+		t.Fatalf("unscoped run should allow github, got %v", e)
+	}
+}
+
+func TestPerRunPolicyApprovalRule(t *testing.T) {
+	// A bundle rule gates a read-only tool that would otherwise pass without
+	// approval — proving the run's bundle approval rules are enforced. With no
+	// resolver, the gated call fails fast (short approval timeout).
+	g, store, mgr, hits := newPolicyGateway(t, nil, []string{"mcp://github"})
+	ctx := context.Background()
+	if err := store.UpsertPolicy(ctx, storage.PolicyRecord{
+		Name:          "gated",
+		ApprovalRules: []storage.ApprovalRule{{Tool: "mcp://github"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	mgr.Create(runs.CreateOptions{ID: "needs-approval", PolicyRef: "gated"})
+
+	w := httptest.NewRecorder()
+	g.handle(w, toolsCallFor("needs-approval", "mcp://github"))
+	e := rpcError(t, w)
+	if e == nil || !strings.Contains(e["message"].(string), "approval") {
+		t.Fatalf("github should require approval under the bundle rule, got %v", e)
+	}
+	if atomic.LoadInt32(hits) != 0 {
+		t.Fatal("a gated, unapproved call must not reach the upstream")
+	}
+}

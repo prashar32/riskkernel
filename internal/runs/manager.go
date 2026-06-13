@@ -25,10 +25,11 @@ import (
 
 // Run is a governed run: identity and metadata wrapped around a live governor.
 type Run struct {
-	ID       string
-	Name     string
-	Budget   governor.Budget
-	Metadata map[string]string
+	ID        string
+	Name      string
+	Budget    governor.Budget
+	PolicyRef string // name of the policy bundle this run was created under ("" = none)
+	Metadata  map[string]string
 
 	mgr       *Manager
 	gov       *governor.Run
@@ -57,6 +58,7 @@ type View struct {
 	ID         string
 	Name       string
 	Status     string
+	PolicyRef  string
 	Budget     governor.Budget
 	Usage      governor.Usage
 	HaltReason governor.HaltReason
@@ -147,6 +149,7 @@ func (r *Run) View() View {
 		ID:         r.ID,
 		Name:       r.Name,
 		Status:     statusFor(halt),
+		PolicyRef:  r.PolicyRef,
 		Budget:     r.Budget,
 		Usage:      usage,
 		HaltReason: halt,
@@ -163,6 +166,7 @@ func (r *Run) record() storage.RunRecord {
 		ID:                    v.ID,
 		Name:                  v.Name,
 		Status:                v.Status,
+		PolicyRef:             v.PolicyRef,
 		HaltReason:            string(v.HaltReason),
 		BudgetTokens:          v.Budget.Tokens,
 		BudgetDollars:         v.Budget.Dollars,
@@ -231,10 +235,11 @@ func (m *Manager) Store() storage.Store { return m.store }
 
 // CreateOptions configures a new run.
 type CreateOptions struct {
-	ID       string // optional; a UUID is minted when empty
-	Name     string
-	Budget   *governor.Budget // nil → manager default
-	Metadata map[string]string
+	ID        string // optional; a UUID is minted when empty
+	Name      string
+	Budget    *governor.Budget // nil → manager default
+	PolicyRef string           // optional policy bundle name applied to this run
+	Metadata  map[string]string
 }
 
 // Create starts a new governed run and registers it.
@@ -248,6 +253,7 @@ func (m *Manager) Create(opts CreateOptions) *Run {
 		rid = id.NewUUID()
 	}
 	r := m.newRun(rid, opts.Name, budget, opts.Metadata)
+	r.PolicyRef = opts.PolicyRef
 	m.mu.Lock()
 	m.runs[rid] = r
 	m.mu.Unlock()
@@ -412,6 +418,7 @@ func (m *Manager) reloadRun(ctx context.Context, rec storage.RunRecord) *Run {
 		ID:        rec.ID,
 		Name:      rec.Name,
 		Budget:    budget,
+		PolicyRef: rec.PolicyRef,
 		Metadata:  rec.Metadata,
 		mgr:       m,
 		gov:       governor.New(context.Background(), budget, opts...),

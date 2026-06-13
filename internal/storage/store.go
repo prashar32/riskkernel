@@ -20,6 +20,9 @@ type RunRecord struct {
 	Name       string
 	Status     string
 	HaltReason string
+	// PolicyRef is the name of the policy bundle the run was created under (empty
+	// = none). Its tool allowlist and approval rules are enforced per-run.
+	PolicyRef string
 
 	BudgetTokens  int64
 	BudgetDollars float64

@@ -70,7 +70,14 @@ func (g *Gate) Required(tool, sideEffect string) bool {
 // notifies push channels, and BLOCKS until the request is resolved or ctx is
 // done (run cancel / time budget). This is how a side-effecting call "pauses".
 func (g *Gate) Request(ctx context.Context, req Request) (Decision, string, error) {
-	if !g.policy.Requires(req.Tool, req.SideEffect) {
+	return g.RequestUnder(ctx, req, g.policy)
+}
+
+// RequestUnder is Request, but evaluates the supplied policy instead of the gate's
+// default. It lets a run enforce its own policy bundle's approval rules per-run
+// (a referenced policyRef) rather than only the daemon-global policy.
+func (g *Gate) RequestUnder(ctx context.Context, req Request, policy Policy) (Decision, string, error) {
+	if !policy.Requires(req.Tool, req.SideEffect) {
 		return Decision{Approved: true}, "", nil
 	}
 
