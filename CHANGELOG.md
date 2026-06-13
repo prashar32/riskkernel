@@ -10,6 +10,16 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Python SDK: LlamaIndex adapter.** `RiskKernelCallbackHandler` (from
+  `riskkernel.adapters.llama_index`) is a LlamaIndex `BaseCallbackHandler` that ticks
+  one governed step per LLM call (`CBEventType.LLM`), so a run's loop/time budget is
+  enforced over a LlamaIndex query or agent and a halt surfaces as `BudgetExceeded` —
+  the LlamaIndex analog of the LangChain and OpenAI-Agents adapters. Register it on
+  `Settings.callback_manager` and the governance is invisible until the budget bites;
+  LlamaIndex doesn't swallow handler exceptions, so no extra flag is needed. Pass
+  `gate_tools=True` to route `CBEventType.FUNCTION_CALL` through the approval gate.
+  `llama-index-core` is lazily imported, so the SDK stays dependency-free; pinned to
+  the `llama-index-core` >= 0.10 callback protocol.
 - **Streaming proxy.** `POST /v1/chat/completions` now supports `stream:true`: the
   budget is enforced before the stream opens, the OpenAI provider's SSE is forwarded
   to the client verbatim (authentic chunks, no translation) while token usage is
