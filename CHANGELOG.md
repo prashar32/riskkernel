@@ -10,6 +10,14 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Streaming proxy.** `POST /v1/chat/completions` now supports `stream:true`: the
+  budget is enforced before the stream opens, the OpenAI provider's SSE is forwarded
+  to the client verbatim (authentic chunks, no translation) while token usage is
+  metered from the final usage chunk, and the run's context — time budget, kill
+  switch, or client disconnect — cuts a live stream. Dollar/token budgets are
+  checked pre-stream and recorded after (so the next call is refused if it went
+  over). A provider without streaming, and the Anthropic `/v1/messages` endpoint,
+  return a clear 501 rather than silently buffering.
 - **`riskkernel doctor`.** Diagnose a setup before relying on it: a checklist over
   the data dir (creatable/writable), the default provider and its credential, the
   default budget (flags an explicitly-unlimited one), the API token, a configured

@@ -265,3 +265,116 @@ func TestDecodeContent(t *testing.T) {
 		t.Errorf("nil content = %q", got)
 	}
 }
+
+// --- streaming (#22) ---
+
+type fakeStream struct {
+	chunks [][]byte
+	i      int
+	usage  provider.Usage
+	model  string
+}
+
+func (s *fakeStream) Recv() ([]byte, error) {
+	if s.i >= len(s.chunks) {
+		return nil, io.EOF
+	}
+	c := s.chunks[s.i]
+	s.i++
+	return c, nil
+}
+func (s *fakeStream) Usage() provider.Usage { return s.usage }
+func (s *fakeStream) Model() string         { return s.model }
+func (s *fakeStream) Close() error          { return nil }
+
+// fakeStreamer is a fakeProvider that also supports streaming.
+type fakeStreamer struct {
+	fakeProvider
+	stream    *fakeStream
+	streamErr error
+}
+
+func (f *fakeStreamer) ChatStream(ctx context.Context, _ provider.Request) (provider.ChatStream, error) {
+	atomic.AddInt32(&f.calls, 1)
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if f.streamErr != nil {
+		return nil, f.streamErr
+	}
+	return f.stream, nil
+}
+
+func newStreamGateway(t *testing.T, budget governor.Budget, fp provider.Provider) *Gateway {
+	t.Helper()
+	reg, err := provider.NewRegistry(fp.Name(), fp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return New(reg, runs.NewManager(budget), pricing.NewTable(nil), otel.Disabled(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+}
+
+func newSSEStreamer() *fakeStreamer {
+	return &fakeStreamer{
+		fakeProvider: fakeProvider{name: "openai"},
+		stream: &fakeStream{
+			chunks: [][]byte{
+				[]byte("data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n"),
+				[]byte("data: [DONE]\n\n"),
+			},
+			usage: provider.Usage{PromptTokens: 10, CompletionTokens: 5},
+			model: "gpt-4o-2024",
+		},
+	}
+}
+
+func TestStreamingProxy_ForwardsAndMeters(t *testing.T) {
+	g := newStreamGateway(t, governor.Budget{Tokens: 1000}, newSSEStreamer())
+	w := postChat(g, "stream-run", `{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}],"stream":true}`)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body=%s", w.Code, w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "text/event-stream" {
+		t.Errorf("content-type = %q", ct)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `"delta"`) || !strings.Contains(body, "[DONE]") {
+		t.Errorf("client did not receive the SSE verbatim: %q", body)
+	}
+	// The streamed call is metered against the run from the stream's usage.
+	run, ok := g.runs.Get("stream-run")
+	if !ok {
+		t.Fatal("run not found")
+	}
+	if v := run.View(); v.Usage.Tokens() != 15 || v.Usage.Loops != 1 {
+		t.Fatalf("streamed usage not recorded: %+v", v.Usage)
+	}
+}
+
+func TestStreamingProxy_BudgetRefusedBeforeStream(t *testing.T) {
+	fs := newSSEStreamer()
+	g := newStreamGateway(t, governor.Budget{Loops: 1}, fs)
+	body := `{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}],"stream":true}`
+
+	if w := postChat(g, "r", body); w.Code != http.StatusOK { // 1st: loops 0→1
+		t.Fatalf("first stream status = %d", w.Code)
+	}
+	// 2nd: loop budget is spent → refused at 402 BEFORE the stream opens.
+	w := postChat(g, "r", body)
+	if w.Code != http.StatusPaymentRequired {
+		t.Fatalf("second stream status = %d, want 402", w.Code)
+	}
+	if got := atomic.LoadInt32(&fs.calls); got != 1 {
+		t.Fatalf("ChatStream called %d times; the refused call must not reach the provider", got)
+	}
+}
+
+func TestStreamingProxy_UnsupportedProvider(t *testing.T) {
+	// A plain provider (no Streamer) → a clear 501, not a silent buffer.
+	g := newStreamGateway(t, governor.Budget{Tokens: 1000}, &fakeProvider{name: "openai", resp: &provider.Response{}})
+	w := postChat(g, "r", `{"model":"gpt-4o","messages":[{"role":"user","content":"hi"}],"stream":true}`)
+	if w.Code != http.StatusNotImplemented {
+		t.Fatalf("status = %d, want 501", w.Code)
+	}
+}

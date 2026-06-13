@@ -62,11 +62,6 @@ func (g *Gateway) handleChatCompletions(w http.ResponseWriter, r *http.Request) 
 		httpx.WriteError(w, http.StatusBadRequest, "bad_request", "invalid JSON: "+err.Error())
 		return
 	}
-	if req.Stream {
-		httpx.WriteError(w, http.StatusNotImplemented, "streaming_unsupported",
-			"streaming is not supported in v0.1 (mid-stream budget enforcement is deferred); set stream:false")
-		return
-	}
 	if req.Model == "" || len(req.Messages) == 0 {
 		httpx.WriteError(w, http.StatusBadRequest, "bad_request", "model and messages are required")
 		return
@@ -86,6 +81,15 @@ func (g *Gateway) handleChatCompletions(w http.ResponseWriter, r *http.Request) 
 	}
 
 	run := g.resolveRun(r)
+
+	// Streaming: forward the provider's SSE verbatim while metering it. The budget
+	// is enforced before the stream opens; the run's context (time budget / kill
+	// switch / client disconnect) cuts a live stream.
+	if req.Stream {
+		g.streamCall(w, r, run, preq)
+		return
+	}
+
 	resp, meta, gwErr := g.governedCall(r, run, preq)
 	if gwErr != nil {
 		gwErr.write(w)
