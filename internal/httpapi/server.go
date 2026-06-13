@@ -100,6 +100,13 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("PUT /v1/memory/facts", s.requireAuth(s.handlePutFact))
 	}
 
+	// Prometheus scrape of the daemon's governed-run state (runs by status, halt
+	// reasons, spend, tokens, approval-queue depth). Authenticated like the rest
+	// of the API and only registered when a durable store is the source of truth.
+	if s.runs != nil && s.runs.Store() != nil {
+		mux.HandleFunc("GET /metrics", s.requireAuth(s.handleMetrics))
+	}
+
 	return s.recoverer(mux)
 }
 

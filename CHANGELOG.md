@@ -10,6 +10,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Prometheus `/metrics` endpoint.** Scrape the daemon's own state: governed runs
+  by status, halted runs by halt reason, total spend in dollars and tokens, priced
+  model calls, and the pending-approval queue depth. Plain Prometheus text
+  exposition (version 0.0.4), authenticated like the rest of the API, served when a
+  durable store is configured. It's local metrics you scrape — no phone-home, no
+  prompt content, no PII — and it's hand-rolled, so it adds no dependency. See
+  [`docs/METRICS.md`](docs/METRICS.md) for the metric list and an example scrape config.
 - **Shell completions.** `riskkernel completion <bash|zsh|fish>` prints a completion
   script to stdout — tab-complete the top-level commands and their sub-subcommands
   (`runs list|resume`, `audit export|tools|compliance`, `policy validate|dry-run`,
