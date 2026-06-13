@@ -88,6 +88,10 @@ hook = make_pre_tool_use_hook(run, side_effect_for={"Bash": "exec", "Write": "wr
 # OpenAI Agents SDK — RunHooks (steps + tool approval)
 from riskkernel.adapters.openai_agents import RiskKernelRunHooks
 hooks = RiskKernelRunHooks(run, gate_tools=True)
+
+# CrewAI — a step_callback (one governed step per agent step; halts the crew at budget)
+from riskkernel.adapters.crewai import RiskKernelStepCallback
+crew = Crew(agents=[...], tasks=[...], step_callback=RiskKernelStepCallback(run))
 ```
 
 ## Configuration

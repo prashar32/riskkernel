@@ -10,6 +10,15 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **CrewAI adapter (Python SDK).** `from riskkernel.adapters.crewai import
+  RiskKernelStepCallback` — a `step_callback` you wire onto a CrewAI `Agent` or the
+  whole `Crew` to bind it to a governed run with no other code change. One agent step
+  counts as one governed step, so the deterministic loop/time budget halts a runaway
+  crew; with `gate_tools=True` each tool call routes through the human-approval gate.
+  The halt is raised from the callback and propagates out of the crew (CrewAI's
+  `step_callback` is synchronous and re-raised by the executor, unlike its
+  fire-and-forget event bus, which would drop it). `crewai` is lazily imported, so it
+  stays an optional dependency; supported against `crewai` >= 0.80, < 2.
 - **Streaming proxy.** `POST /v1/chat/completions` now supports `stream:true`: the
   budget is enforced before the stream opens, the OpenAI provider's SSE is forwarded
   to the client verbatim (authentic chunks, no translation) while token usage is
