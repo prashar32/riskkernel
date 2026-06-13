@@ -10,6 +10,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Prometheus `/metrics` endpoint.** Scrape the daemon's own state: governed runs
+  by status, halted runs by halt reason, total spend in dollars and tokens, priced
+  model calls, and the pending-approval queue depth. Plain Prometheus text
+  exposition (version 0.0.4), authenticated like the rest of the API, served when a
+  durable store is configured. It's local metrics you scrape — no phone-home, no
+  prompt content, no PII — and it's hand-rolled, so it adds no dependency. See
+  [`docs/METRICS.md`](docs/METRICS.md) for the metric list and an example scrape config.
 - **`riskkernel doctor`.** Diagnose a setup before relying on it: a checklist over
   the data dir (creatable/writable), the default provider and its credential, the
   default budget (flags an explicitly-unlimited one), the API token, a configured
