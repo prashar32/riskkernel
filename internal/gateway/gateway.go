@@ -6,8 +6,12 @@
 // priced into the cost ledger, and forwarded to the real provider with the
 // user's key.
 //
-// Streaming is not supported in v0.1 (mid-stream budget enforcement is deferred);
-// stream requests are rejected with a clear error rather than silently degraded.
+// Streaming (`stream:true`) is supported on the OpenAI-compatible endpoint: the
+// budget is enforced before the stream opens, the provider's SSE is forwarded to
+// the client verbatim while token usage is metered from it, and the run's context
+// (time budget / kill switch / client disconnect) cuts a live stream. Providers
+// that don't implement streaming, and the Anthropic /v1/messages endpoint, reject
+// a stream request with a clear error rather than silently degrading.
 package gateway
 
 import (
@@ -193,6 +197,100 @@ func maxF(a, b float64) float64 {
 		return a
 	}
 	return b
+}
+
+// streamCall proxies a streaming completion: enforce the budget before opening the
+// stream, forward the provider's SSE chunks verbatim to the client (flushing each),
+// and meter the call from the stream's final usage. The run's context (time budget
+// / kill switch) and client disconnect cut a live stream. Only providers that
+// implement provider.Streamer support this; others get a clear 501. Dollar/token
+// budgets are checked before the stream and recorded after (so the next call is
+// refused if over); the time budget and kill switch cut mid-stream via the context.
+func (g *Gateway) streamCall(w http.ResponseWriter, r *http.Request, run *runs.Run, preq provider.Request) {
+	step, err := run.BeginStep()
+	if err != nil {
+		budgetError(err).write(w)
+		return
+	}
+	if err := run.CanProceed(); err != nil {
+		budgetError(err).write(w)
+		return
+	}
+
+	prov, err := g.providers.Get(routeModel(preq.Model))
+	if err != nil {
+		(&gwError{http.StatusBadRequest, "unknown_provider", err.Error()}).write(w)
+		return
+	}
+	streamer, ok := prov.(provider.Streamer)
+	if !ok {
+		(&gwError{http.StatusNotImplemented, "streaming_unsupported",
+			"streaming is not supported for provider " + prov.Name() + "; set stream:false"}).write(w)
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		(&gwError{http.StatusInternalServerError, "internal_error", "response writer does not support streaming"}).write(w)
+		return
+	}
+
+	// The stream dies if the run is governed-cancelled/expired (parent) or the
+	// client goes away.
+	callCtx, cancel := context.WithCancel(run.Context())
+	defer cancel()
+	stop := context.AfterFunc(r.Context(), cancel)
+	defer stop()
+
+	start := time.Now()
+	stream, serr := streamer.ChatStream(callCtx, preq)
+	if serr != nil {
+		if run.Halted() {
+			haltGWError(run.HaltReason()).write(w)
+			return
+		}
+		(&gwError{http.StatusBadGateway, "provider_error", serr.Error()}).write(w)
+		return
+	}
+	defer stream.Close()
+
+	// Past here the response is committed (200 + SSE); all budget pre-checks passed.
+	h := w.Header()
+	h.Set("Content-Type", "text/event-stream")
+	h.Set("Cache-Control", "no-cache")
+	h.Set("Connection", "keep-alive")
+	h.Set(HeaderRunID, run.ID)
+	h.Set(headerStep, strconv.Itoa(int(step)))
+	w.WriteHeader(http.StatusOK)
+	flusher.Flush()
+
+	for {
+		chunk, rerr := stream.Recv()
+		if len(chunk) > 0 {
+			if _, werr := w.Write(chunk); werr != nil {
+				break // client disconnected
+			}
+			flusher.Flush()
+		}
+		if rerr != nil {
+			break // io.EOF (clean end) or an upstream/context error (truncates the stream)
+		}
+	}
+	end := time.Now()
+
+	// Meter the (possibly truncated) call from the usage the stream reported, so the
+	// ledger and budget reflect it and the next call is refused if it went over.
+	model := stream.Model()
+	if model == "" {
+		model = preq.Model
+	}
+	usage := stream.Usage()
+	cost, priced := g.prices.Cost(model, usage.PromptTokens, usage.CompletionTokens)
+	_ = run.RecordCall(runs.Call{
+		StepIndex: step, Provider: prov.Name(), Model: model,
+		PromptTokens: usage.PromptTokens, CompletionTokens: usage.CompletionTokens,
+		Dollars: cost, Priced: priced,
+	})
+	g.emitCallSpan(run, step, prov.Name(), preq, &provider.Response{Model: model, Usage: usage}, cost, priced, run.HaltReason(), start, end)
 }
 
 // stampHeaders writes the governance headers onto a successful proxied response.

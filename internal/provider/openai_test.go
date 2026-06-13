@@ -3,6 +3,7 @@ package provider
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -122,5 +123,53 @@ func TestOpenAIChat_ContextCancel(t *testing.T) {
 	_, err := o.Chat(ctx, Request{Model: "gpt-4o", Messages: []Message{{Role: RoleUser, Content: "hi"}}})
 	if err != context.Canceled {
 		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+}
+
+func TestOpenAIChatStream(t *testing.T) {
+	sse := "data: {\"model\":\"gpt-4o-2024\",\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}\n\n" +
+		"data: {\"choices\":[{\"delta\":{\"content\":\" there\"}}]}\n\n" +
+		"data: {\"model\":\"gpt-4o-2024\",\"choices\":[],\"usage\":{\"prompt_tokens\":12,\"completion_tokens\":3}}\n\n" +
+		"data: [DONE]\n\n"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var got openAIReq
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		if !got.Stream || got.StreamOptions == nil || !got.StreamOptions.IncludeUsage {
+			t.Errorf("stream request must set stream + include_usage: %+v", got)
+		}
+		w.Header().Set("Content-Type", "text/event-stream")
+		_, _ = io.WriteString(w, sse)
+	}))
+	defer srv.Close()
+
+	o := NewOpenAI("k")
+	o.baseURL = srv.URL
+	st, err := o.ChatStream(context.Background(), Request{Model: "gpt-4o", Messages: []Message{{Role: RoleUser, Content: "hi"}}})
+	if err != nil {
+		t.Fatalf("ChatStream: %v", err)
+	}
+	defer st.Close()
+
+	var forwarded strings.Builder
+	for {
+		chunk, err := st.Recv()
+		forwarded.Write(chunk)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			t.Fatalf("Recv: %v", err)
+		}
+	}
+	// The client receives the provider's SSE verbatim.
+	if forwarded.String() != sse {
+		t.Errorf("forwarded stream != upstream:\n got %q\nwant %q", forwarded.String(), sse)
+	}
+	// Usage and model are extracted from the stream for metering.
+	if u := st.Usage(); u.PromptTokens != 12 || u.CompletionTokens != 3 {
+		t.Errorf("usage = %+v, want 12/3", u)
+	}
+	if st.Model() != "gpt-4o-2024" {
+		t.Errorf("model = %q, want gpt-4o-2024", st.Model())
 	}
 }

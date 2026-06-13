@@ -59,8 +59,10 @@ func (g *Gateway) handleMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if req.Stream {
+		// The OpenAI-compatible /v1/chat/completions path streams; native Anthropic
+		// /v1/messages streaming is not wired yet (its SSE event format differs).
 		httpx.WriteError(w, http.StatusNotImplemented, "streaming_unsupported",
-			"streaming is not supported in v0.1; set stream:false")
+			"streaming is not yet supported on /v1/messages; set stream:false (or use /v1/chat/completions)")
 		return
 	}
 	if req.Model == "" || len(req.Messages) == 0 {
