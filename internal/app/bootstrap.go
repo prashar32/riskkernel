@@ -19,6 +19,7 @@ import (
 	"github.com/prashar32/riskkernel/internal/mcp"
 	"github.com/prashar32/riskkernel/internal/memory"
 	"github.com/prashar32/riskkernel/internal/otel"
+	"github.com/prashar32/riskkernel/internal/policy"
 	"github.com/prashar32/riskkernel/internal/pricing"
 	"github.com/prashar32/riskkernel/internal/provider"
 	"github.com/prashar32/riskkernel/internal/runs"
@@ -36,7 +37,8 @@ type Deps struct {
 	Store     storage.Store
 	Tracer    *otel.Tracer
 	Approvals *approval.Gate
-	MCP       *mcp.Gateway // nil when no upstream is configured
+	Slack     *approval.SlackNotifier // nil when the Slack channel isn't configured
+	MCP       *mcp.Gateway            // nil when no upstream is configured
 	Memory    *memory.Reader
 }
 
@@ -109,11 +111,27 @@ func Build(cfg *config.Config) (*Deps, error) {
 	mgr := runs.NewManager(toGovernorBudget(cfg.DefaultBudget)).WithStore(store, log)
 	gw := gateway.New(registry, mgr, prices, tracer, log)
 
-	var notifier approval.Notifier
-	if wh := approval.NewWebhookNotifier(cfg.Approval.WebhookURL, log); wh != nil {
-		notifier = wh
+	webhook := approval.NewWebhookNotifier(cfg.Approval.WebhookURL, log)
+	slackNotifier := approval.NewSlackNotifier(cfg.Approval.SlackBotToken, cfg.Approval.SlackChannel,
+		cfg.Approval.SlackSigningSecret, log)
+	if slackNotifier != nil {
+		log.Info("slack approval channel enabled", "channel", cfg.Approval.SlackChannel,
+			"interactive", cfg.Approval.SlackSigningSecret != "")
 	}
+	notifier := approval.CombineNotifiers(webhook, slackNotifier)
 	gate := approval.NewGate(store, approval.Policy{DefaultSafe: cfg.Approval.DefaultSafe}, notifier, log)
+
+	// Register policy-as-code bundles from riskkernel.yaml (reviewable in PRs) so
+	// runs can reference them by name. A bad file fails fast rather than booting
+	// with a stale or partial policy.
+	if cfg.PolicyFile != "" {
+		n, err := registerPolicyFile(context.Background(), store, cfg.PolicyFile)
+		if err != nil {
+			_ = store.Close()
+			return nil, fmt.Errorf("loading policy file %q: %w", cfg.PolicyFile, err)
+		}
+		log.Info("policy bundles registered", "file", cfg.PolicyFile, "count", n)
+	}
 
 	var mcpGW *mcp.Gateway
 	if cfg.MCP.Upstream != "" {
@@ -139,6 +157,7 @@ func Build(cfg *config.Config) (*Deps, error) {
 		Store:     store,
 		Tracer:    tracer,
 		Approvals: gate,
+		Slack:     slackNotifier,
 		MCP:       mcpGW,
 		Memory:    memReader,
 	}, nil
@@ -178,6 +197,22 @@ func BuildRegistry(cfg *config.Config) (*provider.Registry, error) {
 	}
 
 	return provider.NewRegistry(cfg.DefaultProvider, ps...)
+}
+
+// registerPolicyFile loads a riskkernel.yaml and upserts each bundle into the
+// store, returning how many were registered.
+func registerPolicyFile(ctx context.Context, store storage.Store, path string) (int, error) {
+	f, err := policy.Load(path)
+	if err != nil {
+		return 0, err
+	}
+	now := time.Now()
+	for _, b := range f.Policies {
+		if err := store.UpsertPolicy(ctx, b.Record(now)); err != nil {
+			return 0, err
+		}
+	}
+	return len(f.Policies), nil
 }
 
 // toGovernorBudget converts the config's primitive budget into a governor.Budget.

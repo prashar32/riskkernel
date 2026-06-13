@@ -47,6 +47,8 @@ func main() {
 		err = runRuns(args)
 	case "audit":
 		err = runAudit(args)
+	case "policy":
+		err = runPolicy(args)
 	case "approvals":
 		err = runApprovals(args)
 	case "memory":
@@ -81,6 +83,8 @@ Usage:
   riskkernel audit export <id>  Export a run's cost ledger as JSON
   riskkernel audit tools <id>   Export a run's governed tool calls as JSON
   riskkernel audit compliance <id>  Auditor-ready OWASP / EU AI Act evidence export
+  riskkernel policy validate <file>          Validate a riskkernel.yaml policy file
+  riskkernel policy dry-run <file> <run-id>  Show what a policy would gate/halt on a run
   riskkernel approvals list     List pending human-in-the-loop approvals
   riskkernel approvals approve <id> [--reason ...]  Approve a pending request
   riskkernel approvals deny <id> [--reason ...]     Deny a pending request
@@ -130,7 +134,7 @@ func runServe(_ []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	srv := httpapi.New(cfg, deps.Gateway, deps.Runs, deps.Approvals, deps.MCP, deps.Memory, deps.Log)
+	srv := httpapi.New(cfg, deps.Gateway, deps.Runs, deps.Approvals, deps.Slack, deps.MCP, deps.Memory, deps.Log)
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	return srv.Serve(ctx, addr)
 }

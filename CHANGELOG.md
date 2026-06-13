@@ -18,6 +18,28 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   verification procedure is embedded). It's an *evidence* export with a built-in
   disclaimer — not a legal compliance determination; nothing is inferred by an LLM.
   See [`docs/COMPLIANCE.md`](docs/COMPLIANCE.md).
+- **Reusable policy bundles.** Register a named bundle of a default budget, a tool
+  allowlist, and approval rules with `POST /v1/policies` (re-registering the same
+  name updates it; `GET /v1/policies` and `GET /v1/policies/{name}` read them back),
+  then a run references it by name: `POST /v1/runs` with `policyRef` applies the
+  bundle's budget, and an inline `budget` overrides it field-by-field. Deterministic
+  config persisted in the SQLite state — the seam the `AgentProfile` model builds on.
+- **Approve from Slack.** A new push channel for the human-in-the-loop gate: set
+  `RISKKERNEL_APPROVAL_SLACK_BOT_TOKEN` + `RISKKERNEL_APPROVAL_SLACK_CHANNEL` and a
+  gated, side-effecting tool call is posted to the channel with **Approve / Deny**
+  buttons; the click resolves the pending action and the message is rewritten with
+  the outcome. The interactivity callback (`/v1/integrations/slack/interactions`) is
+  authenticated by the Slack request signature (`RISKKERNEL_APPROVAL_SLACK_SIGNING_SECRET`),
+  verified over the raw body with a replay window and failing closed without it — not
+  the daemon API token, which Slack can't send. Works alongside the existing
+  CLI/web/webhook channels. See [`docs/APPROVALS_SLACK.md`](docs/APPROVALS_SLACK.md).
+- **Policy-as-code (`riskkernel.yaml`).** Define those bundles in a YAML file
+  reviewed in PRs and applied on startup: point the daemon at it with
+  `RISKKERNEL_POLICY_FILE` and the bundles register on boot (a malformed file fails
+  startup, not silently). `riskkernel policy validate <file>` checks it, and
+  `riskkernel policy dry-run <file> <run-id>` replays a recorded run against a bundle
+  to show what it *would* have halted, blocked, or gated — changing nothing. See
+  [`docs/POLICY.md`](docs/POLICY.md) and [`examples/policy`](examples/policy).
 
 ## [0.5.0] - 2026-06-13
 
