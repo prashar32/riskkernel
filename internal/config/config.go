@@ -54,6 +54,9 @@ type Config struct {
 	// itself in a shared shell). Empty uses the provider's default endpoint.
 	AnthropicBaseURL string // RISKKERNEL_ANTHROPIC_BASE_URL
 	OpenAIBaseURL    string // RISKKERNEL_OPENAI_BASE_URL
+	// OllamaBaseURL points the native Ollama provider at a server. Empty uses the
+	// local default (http://localhost:11434). Read from RISKKERNEL_OLLAMA_BASE_URL.
+	OllamaBaseURL string
 
 	// DefaultBudget is applied to runs created without an explicit budget — e.g.
 	// proxy calls that supply only a run-id. Any zero field is unlimited. When no
@@ -209,6 +212,7 @@ func Load() (*Config, error) {
 		OpenAIAPIKey:     os.Getenv("OPENAI_API_KEY"),
 		AnthropicBaseURL: os.Getenv("RISKKERNEL_ANTHROPIC_BASE_URL"),
 		OpenAIBaseURL:    os.Getenv("RISKKERNEL_OPENAI_BASE_URL"),
+		OllamaBaseURL:    os.Getenv("RISKKERNEL_OLLAMA_BASE_URL"),
 		DefaultBudget:    budget,
 		PricingFile:      os.Getenv("RISKKERNEL_PRICING_FILE"),
 		PolicyFile:       os.Getenv("RISKKERNEL_POLICY_FILE"),

@@ -19,6 +19,23 @@ event log. Plus the published enforcement-overhead number (~150 ns, zero allocat
 and a public roadmap. No breaking API changes; forward-compatible with v0.5.x state.
 
 ### Added
+- **Native Ollama provider.** Run local models through RiskKernel — set
+  `RISKKERNEL_DEFAULT_PROVIDER=ollama` (key-free) and budgets, the proxy, the audit
+  trail, and crash-resume all work the same as for a hosted provider. Talks to
+  Ollama's `/api/chat`; token usage comes from `prompt_eval_count` / `eval_count`.
+  Point it at a remote server with `RISKKERNEL_OLLAMA_BASE_URL` (default
+  `http://localhost:11434`).
+
+## [0.6.0] - 2026-06-13
+
+Governance and compliance. Approvals can route to **Slack**, policy is now
+**code** — reusable bundles via `POST /v1/policies` or a reviewed `riskkernel.yaml`,
+with a dry-run against recorded runs — and a new **compliance evidence export** maps
+RiskKernel's recorded controls to OWASP / EU AI Act references with a tamper-evident
+event log. Plus the published enforcement-overhead number (~150 ns, zero allocations)
+and a public roadmap. No breaking API changes; forward-compatible with v0.5.x state.
+
+### Added
 - **Published enforcement overhead + a public roadmap.** The deterministic
   enforcement decision is measured at ~150 ns and **zero heap allocations** per
   governed call (`go test -bench ./internal/governor`); methodology and numbers are
