@@ -165,6 +165,12 @@ type OTelConfig struct {
 	// OTEL_EXPORTER_OTLP_HEADERS, as a comma-separated list of key=value pairs.
 	// Carries secrets — never logged.
 	Headers map[string]string
+
+	// IngressEnabled turns on the OTLP/HTTP trace receiver (Surface 3, consume
+	// side): RiskKernel becomes an OTLP endpoint at POST /v1/traces that meters
+	// GenAI spans from apps it didn't directly proxy. Off by default — no listener
+	// is mounted unless RISKKERNEL_OTEL_INGRESS_ENABLED is set truthy.
+	IngressEnabled bool
 }
 
 // BudgetConfig holds raw budget values (no governor dependency here so config
@@ -292,11 +298,12 @@ func loadOTel() OTelConfig {
 		headers = os.Getenv("OTEL_EXPORTER_OTLP_HEADERS")
 	}
 	return OTelConfig{
-		Endpoint:    endpoint,
-		Protocol:    getenvDefault("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc"),
-		Insecure:    insecure,
-		ServiceName: getenvDefault("OTEL_SERVICE_NAME", "riskkernel"),
-		Headers:     parseOTLPHeaders(headers),
+		Endpoint:       endpoint,
+		Protocol:       getenvDefault("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc"),
+		Insecure:       insecure,
+		ServiceName:    getenvDefault("OTEL_SERVICE_NAME", "riskkernel"),
+		Headers:        parseOTLPHeaders(headers),
+		IngressEnabled: envBoolDefault("RISKKERNEL_OTEL_INGRESS_ENABLED", false),
 	}
 }
 

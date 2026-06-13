@@ -40,7 +40,7 @@ func newSlackTestServer(t *testing.T, secret string) (*Server, *runs.Manager, *a
 	mgr := runs.NewManager(governor.Budget{Tokens: 100000}).WithStore(store, log)
 	gate := approval.NewGate(store, approval.Policy{DefaultSafe: true}, nil, log)
 	slack := approval.NewSlackNotifier("xoxb-test", "C123", secret, log)
-	srv := New(&config.Config{}, nil, mgr, gate, slack, nil, memory.NewReader(t.TempDir()), log)
+	srv := New(&config.Config{}, nil, mgr, gate, slack, nil, memory.NewReader(t.TempDir()), nil, log)
 	return srv, mgr, gate
 }
 
