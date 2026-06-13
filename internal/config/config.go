@@ -67,6 +67,11 @@ type Config struct {
 	// Read from RISKKERNEL_PRICING_FILE.
 	PricingFile string
 
+	// PolicyFile is an optional riskkernel.yaml of named policy bundles, registered
+	// into the store on startup — policy-as-code reviewable in PRs. Empty disables
+	// it. Read from RISKKERNEL_POLICY_FILE.
+	PolicyFile string
+
 	// OTel configures OpenTelemetry GenAI span export (Surface 3). Disabled unless
 	// an endpoint is set — RiskKernel never emits telemetry unless the user points
 	// it at their own OTLP backend.
@@ -206,6 +211,7 @@ func Load() (*Config, error) {
 		OpenAIBaseURL:    os.Getenv("RISKKERNEL_OPENAI_BASE_URL"),
 		DefaultBudget:    budget,
 		PricingFile:      os.Getenv("RISKKERNEL_PRICING_FILE"),
+		PolicyFile:       os.Getenv("RISKKERNEL_POLICY_FILE"),
 		OTel:             loadOTel(),
 		Approval: ApprovalConfig{
 			DefaultSafe:        envBoolDefault("RISKKERNEL_APPROVAL_DEFAULT_SAFE", true),

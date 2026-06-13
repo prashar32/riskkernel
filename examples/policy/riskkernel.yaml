@@ -1,0 +1,42 @@
+# riskkernel.yaml — policy-as-code.
+#
+# Named policy bundles: a default budget, a tool allowlist, and approval rules. A
+# run references one by name (POST /v1/runs with "policyRef": "developer"), so the
+# policy is reviewed in PRs instead of inlined per call. Applied on startup when the
+# daemon is pointed at this file with RISKKERNEL_POLICY_FILE.
+#
+# Validate it:  riskkernel policy validate examples/policy/riskkernel.yaml
+# Dry-run it:   riskkernel policy dry-run examples/policy/riskkernel.yaml <run-id> developer
+schemaVersion: 1
+
+policies:
+  - name: developer
+    # Hard per-run limits; any omitted dimension is unlimited.
+    budget:
+      tokens: 200000
+      dollars: 5.00
+      loops: 50
+      seconds: 1800
+    # Tools a run under this policy may call. Empty/omitted = all tools allowed.
+    toolAllowlist:
+      - "mcp://github"
+      - "mcp://filesystem"
+      - "mcp://shell"
+    # Which calls need a human sign-off. An action matches if it matches ANY rule —
+    # by exact tool, or by a side-effect glob.
+    approvalPolicy:
+      requireFor:
+        - { tool: "mcp://shell" }
+        - { tool: "mcp://github/create_pull_request" }
+        - { sideEffect: "*write*" }
+
+  - name: read-only
+    budget:
+      dollars: 1.00
+      loops: 20
+    toolAllowlist:
+      - "mcp://github"
+      - "mcp://filesystem"
+    # No requireFor: nothing is gated, because nothing here has side effects.
+    approvalPolicy:
+      requireFor: []

@@ -25,6 +25,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   verified over the raw body with a replay window and failing closed without it — not
   the daemon API token, which Slack can't send. Works alongside the existing
   CLI/web/webhook channels. See [`docs/APPROVALS_SLACK.md`](docs/APPROVALS_SLACK.md).
+- **Policy-as-code (`riskkernel.yaml`).** Define those bundles in a YAML file
+  reviewed in PRs and applied on startup: point the daemon at it with
+  `RISKKERNEL_POLICY_FILE` and the bundles register on boot (a malformed file fails
+  startup, not silently). `riskkernel policy validate <file>` checks it, and
+  `riskkernel policy dry-run <file> <run-id>` replays a recorded run against a bundle
+  to show what it *would* have halted, blocked, or gated — changing nothing. See
+  [`docs/POLICY.md`](docs/POLICY.md) and [`examples/policy`](examples/policy).
 
 ## [0.5.0] - 2026-06-13
 
