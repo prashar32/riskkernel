@@ -10,6 +10,14 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Importable SigNoz dashboard.** [`examples/otel/signoz`](examples/otel/signoz)
+  ships a ready-made SigNoz dashboard (spend per run, budget halts by reason,
+  tool-call outcomes, latency and token burn by model) built from the same
+  OpenTelemetry GenAI spans RiskKernel already exports — so teams on SigNoz get the
+  "feed your existing observability" story as one JSON import, matching the existing
+  Grafana + Tempo example. Queries reference only the attribute names pinned in
+  [`api/v1/otel-genai.md`](api/v1/otel-genai.md); a short README covers pointing the
+  OTLP exporter at SigNoz (self-hosted and Cloud).
 - **Recovery-time benchmark — timed `kill -9` resume with exact-once spend.**
   [`benchmark/recovery.py`](benchmark/recovery.py) adds the crash-recovery dimension
   to the cost benchmark: a governed, checkpointing run is interrupted by a hard
