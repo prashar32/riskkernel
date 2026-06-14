@@ -10,6 +10,19 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **AutoGen adapter (Python SDK).** `from riskkernel.adapters.autogen import
+  GovernedChatCompletionClient` — wrap your AutoGen model client once and hand it to
+  your existing `AssistantAgent` (or team) to bind it to a governed run with no other
+  code change. One model request counts as one governed step, so the deterministic
+  loop/time budget halts a runaway agent; with `gate_tools=True` each tool call the
+  model requests (a `FunctionCall` in the result) routes through the human-approval
+  gate before the agent can run it. Targets the actively maintained v0.4+ line
+  (`autogen-agentchat` / `autogen-core` >= 0.4), not the legacy `pyautogen` 0.2 API;
+  `autogen` is lazily handled (the wrapper is duck-typed and imports nothing), so it
+  stays an optional dependency. A single agent run propagates the halt typed; a team
+  (`RoundRobinGroupChat`, …) re-raises it as a `RuntimeError`, so `governed_run_errors()`
+  (from the same module) restores the typed `BudgetExceeded`/`ApprovalDenied` around a
+  team call.
 - **OTLP trace ingress.** RiskKernel can now act as an OTLP/HTTP trace endpoint
   (`POST /v1/traces`), the consume side of the OpenTelemetry surface — point any
   exporter at it (`OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:7070`) and the GenAI

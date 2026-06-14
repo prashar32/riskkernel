@@ -7,4 +7,5 @@ third-party dependencies and you only pay for what you use.
 - ``claude_agent``   — a PreToolUse hook for the Claude Agent SDK (approval gate).
 - ``openai_agents``  — RunHooks for the OpenAI Agents SDK (steps + approval gate).
 - ``crewai``         — a step_callback for CrewAI (steps + tool approval gate).
+- ``autogen``        — a model-client wrapper for AutoGen v0.4+ (steps + tool gate).
 """

@@ -98,7 +98,17 @@ hooks = RiskKernelRunHooks(run, gate_tools=True)
 # CrewAI — a step_callback (one governed step per agent step; halts the crew at budget)
 from riskkernel.adapters.crewai import RiskKernelStepCallback
 crew = Crew(agents=[...], tasks=[...], step_callback=RiskKernelStepCallback(run))
+
+# AutoGen (v0.4+) — wrap the model client; one governed step per model call
+from riskkernel.adapters.autogen import GovernedChatCompletionClient
+client = GovernedChatCompletionClient(model_client, run)   # drop-in for the real client
+agent = AssistantAgent("assistant", model_client=client)   # halts the agent at budget
 ```
+
+> AutoGen halts the run either way, but a *team* (`RoundRobinGroupChat`, …) re-raises
+> the halt as a `RuntimeError`; wrap the team call in
+> `with governed_run_errors():` (from the same module) to get the typed
+> `rk.BudgetExceeded` back. A single agent run propagates it typed already.
 
 ## Configuration
 
