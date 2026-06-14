@@ -24,6 +24,10 @@ name: Publish TypeScript SDK
 on:
   push:
     tags: ["v*"]
+  # Manual re-publish: if a tag shipped before package.json was bumped, fix the
+  # version on a branch and run this workflow from that ref. Publishing is
+  # idempotent (it skips a version already on npm), so a manual run is safe.
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -53,7 +57,10 @@ jobs:
         run: npm ci
 
       # Don't publish a version that doesn't match the tag that triggered this.
+      # Only meaningful for a tag push; a manual dispatch publishes whatever
+      # package.json declares (still guarded by the idempotent publish below).
       - name: Verify package version matches the tag
+        if: github.event_name == 'push'
         run: |
           tag="${GITHUB_REF_NAME#v}"
           pkg="$(node -p "require('./package.json').version")"
