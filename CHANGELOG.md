@@ -10,6 +10,17 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Recovery-time benchmark — timed `kill -9` resume with exact-once spend.**
+  [`benchmark/recovery.py`](benchmark/recovery.py) adds the crash-recovery dimension
+  to the cost benchmark: a governed, checkpointing run is interrupted by a hard
+  `kill -9` of the daemon mid-run, the daemon is restarted on the same durable data
+  dir, and the harness times how long until it's healthy with the run reloaded
+  (**recovery time**) and proves the cost meter continues from where it was — no
+  reset, no double-count — and still halts at the original budget. Deterministic and
+  key-free (the existing mock provider, dummy key, spend read from RiskKernel's own
+  ledger); it merges its numbers into `results.json` under a `recovery` key without
+  touching the existing cost object. The benchmark README gains a "Recovery time"
+  section with the methodology.
 - **Troubleshooting guide.** [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)
   maps the errors new users actually hit — each as symptom → cause → fix — to the
   exact messages the daemon emits: a missing/invalid provider key, port 7070 already
