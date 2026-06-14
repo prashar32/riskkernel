@@ -21,6 +21,14 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   ledger); it merges its numbers into `results.json` under a `recovery` key without
   touching the existing cost object. The benchmark README gains a "Recovery time"
   section with the methodology.
+- **Troubleshooting guide.** [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)
+  maps the errors new users actually hit — each as symptom → cause → fix — to the
+  exact messages the daemon emits: a missing/invalid provider key, port 7070 already
+  in use, the **expected** HTTP 402 budget halt (with the `HaltReason` it carries —
+  not a bug), a killed run that didn't resume, the schema-newer-than-binary
+  downgrade guard, a 401 from API auth, an unreachable OTLP endpoint, and OTLP
+  ingress 400s. It leads with `riskkernel doctor` and is linked from the README
+  quickstart.
 - **One-command docker-compose quickstart.** [`examples/quickstart-compose`](examples/quickstart-compose)
   brings up the daemon, a stand-in mock LLM, and a tiny looping agent with a single
   `docker compose up` — so a newcomer watches the deterministic loop budget hard-stop
