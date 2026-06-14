@@ -7,7 +7,7 @@ package version
 // These are set via -ldflags "-X github.com/prashar32/riskkernel/internal/version.Version=..."
 var (
 	// Version is the semantic version of this build.
-	Version = "0.6.1-dev"
+	Version = "0.7.1-dev"
 	// Commit is the git commit this binary was built from.
 	Commit = "unknown"
 	// Date is the build date (RFC3339), stamped at release.

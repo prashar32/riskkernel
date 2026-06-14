@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "riskkernel"
-version = "0.6.0"
+version = "0.7.0"
 description = "Thin Python client for the RiskKernel reliability runtime (Surface 2)."
 readme = "README.md"
 requires-python = ">=3.9"

@@ -71,7 +71,7 @@ orchestration inside the runtime, and a required heavyweight datastore.
 
 ## Status & roadmap
 
-v0.6.0 (released). The runtime is the entire current focus. See
+v0.7.0 (released). The runtime is the entire current focus. See
 [`CHANGELOG.md`](../CHANGELOG.md) for what has landed and the public contract in
 [`api/v1/`](../api/v1) for the stable surface SDKs build on.
 
