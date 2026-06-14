@@ -137,6 +137,10 @@ Governing tools over MCP? [`examples/mcp`](examples/mcp) puts the MCP gateway in
 front of a stub server and shows a tool blocked by the allowlist, a side-effecting
 tool held for approval, and the audit trail — key-free.
 
+Hit a snag? `riskkernel doctor` diagnoses most setups, and the
+[troubleshooting guide](docs/TROUBLESHOOTING.md) maps the common errors —
+missing key, port in use, the expected 402 budget halt — to fixes.
+
 ## Design principles
 
 - **Deterministic core in Go.** All enforcement (budgets, kill switches, gating, routing, retries, checkpointing) lives in compiled, statically-typed code — never in an LLM.

@@ -18,6 +18,33 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   path. The OTel model-call span now also carries `riskkernel.run.name` and one
   `riskkernel.run.meta.<key>` per run tag, so the same grouping works in Datadog/Grafana/etc.
   without a separate run→team map.
+- **Importable SigNoz dashboard.** [`examples/otel/signoz`](examples/otel/signoz)
+  ships a ready-made SigNoz dashboard (spend per run, budget halts by reason,
+  tool-call outcomes, latency and token burn by model) built from the same
+  OpenTelemetry GenAI spans RiskKernel already exports — so teams on SigNoz get the
+  "feed your existing observability" story as one JSON import, matching the existing
+  Grafana + Tempo example. Queries reference only the attribute names pinned in
+  [`api/v1/otel-genai.md`](api/v1/otel-genai.md); a short README covers pointing the
+  OTLP exporter at SigNoz (self-hosted and Cloud).
+- **Recovery-time benchmark — timed `kill -9` resume with exact-once spend.**
+  [`benchmark/recovery.py`](benchmark/recovery.py) adds the crash-recovery dimension
+  to the cost benchmark: a governed, checkpointing run is interrupted by a hard
+  `kill -9` of the daemon mid-run, the daemon is restarted on the same durable data
+  dir, and the harness times how long until it's healthy with the run reloaded
+  (**recovery time**) and proves the cost meter continues from where it was — no
+  reset, no double-count — and still halts at the original budget. Deterministic and
+  key-free (the existing mock provider, dummy key, spend read from RiskKernel's own
+  ledger); it merges its numbers into `results.json` under a `recovery` key without
+  touching the existing cost object. The benchmark README gains a "Recovery time"
+  section with the methodology.
+- **Troubleshooting guide.** [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md)
+  maps the errors new users actually hit — each as symptom → cause → fix — to the
+  exact messages the daemon emits: a missing/invalid provider key, port 7070 already
+  in use, the **expected** HTTP 402 budget halt (with the `HaltReason` it carries —
+  not a bug), a killed run that didn't resume, the schema-newer-than-binary
+  downgrade guard, a 401 from API auth, an unreachable OTLP endpoint, and OTLP
+  ingress 400s. It leads with `riskkernel doctor` and is linked from the README
+  quickstart.
 - **One-command docker-compose quickstart.** [`examples/quickstart-compose`](examples/quickstart-compose)
   brings up the daemon, a stand-in mock LLM, and a tiny looping agent with a single
   `docker compose up` — so a newcomer watches the deterministic loop budget hard-stop

@@ -64,12 +64,76 @@ runaway would have continued.** The baseline grows without bound:
 So "dollars saved" is a function of how far the loop would have run before a human
 noticed — and RiskKernel's guarantee is the **flat ceiling**, not a fixed percentage.
 
+## Recovery time — `kill -9` mid-run, resume without re-spending
+
+The second dimension. [`recovery.py`](recovery.py) measures **crash recovery**: a
+governed, checkpointing run is interrupted by a hard `kill -9` of the daemon
+mid-run, the daemon is restarted on the same durable data dir, and we time how long
+until it's healthy with the run reloaded — then prove the run finishes **without
+re-spending**.
+
+```bash
+python3 benchmark/recovery.py
+```
+
+```
+  RiskKernel recovery benchmark — kill -9 mid-run, resume without re-spending
+  ------------------------------------------------------------------
+  dollar budget              $0.25
+  per-call cost              $0.0125   (gpt-4o, from RiskKernel's ledger)
+  calls before crash         8
+  ------------------------------------------------------------------
+  RECOVERY TIME              53 ms   (kill -9 -> healthy + run reloaded)
+  daemon log                 "resumed runs from store" count=1
+  ------------------------------------------------------------------
+  spend (ledger)                 dollars   tokens  loops
+  before crash                   $0.1000    16000      8
+  after restart (reloaded)       $0.1000    16000      8
+  final (budget halt)            $0.2500    40000     20
+  ------------------------------------------------------------------
+  meter NOT reset by crash   yes  (after-restart spend >= before)
+  meter NOT double-counted   yes  (after-restart spend == before)
+  halted at original budget  yes  (dollar_budget_exceeded)
+  EXACT-ONCE across crash    PASS
+```
+
+Tunable via env: `BUDGET`, `PRE_CRASH_CALLS` (calls before the crash), `N` (safety
+cap on the loop), `RK_BIN`.
+
+### Methodology (the exact-once guarantee)
+
+Same key-free, deterministic setup as the cost benchmark — the mock provider, a
+dummy key, spend read from RiskKernel's own ledger. The sequence:
+
+1. **Spend, then checkpoint.** The run makes several governed calls through
+   RiskKernel (grouped by a run-id header) and checkpoints between them. The spend so
+   far is read from the ledger (`GET /v1/runs/{id}` → `usage.dollars / tokens /
+   loops`) — *before crash* in the table.
+2. **Hard crash.** The daemon is `SIGKILL`'d — no graceful shutdown, no chance to
+   flush. Everything that survives is what was already durable in SQLite.
+3. **Timed recovery.** The daemon is restarted on the **same data dir**. The clock
+   runs until `/healthz` is up *and* `GET /v1/runs/{id}` shows the run reloaded and
+   still `running` with its prior spend — that interval is the **recovery time**. The
+   `resumed runs from store` startup line is the daemon's own confirmation it
+   restored runs from the store.
+4. **Continue to the budget.** The run keeps calling on the same run-id until it
+   halts. The proof is three-way: the *after-restart* spend equals the *before-crash*
+   spend (no reset, no double-count), and the *final* spend lands on exactly the
+   budget with `dollar_budget_exceeded` — i.e. each call is charged **exactly once**
+   across the crash. If the meter had reset to `$0`, the run would have spent the
+   budget *plus* the pre-crash calls re-paid (the counterfactual the harness prints).
+
+Recovery is sub-100 ms on a laptop here because the work is reloading rows from a
+local SQLite file, not replaying a log. The number scales with how many runs and how
+much ledger history the store holds, not with how long the killed run had been
+spending.
+
 ## Scope & honesty
 
-- This measures the **cost-ceiling** dimension. The **crash-recovery** dimension —
-  `kill -9` mid-run, resume without re-spending — is demonstrated end-to-end in
-  [`examples/kill-9-resume`](../examples/kill-9-resume); a *timed* recovery
-  benchmark is a planned addition here.
+- Two dimensions are measured here: the **cost ceiling** ([`benchmark.py`](benchmark.py))
+  and **crash recovery** ([`recovery.py`](recovery.py), above). The crash-resume
+  mechanism is also demonstrated interactively in
+  [`examples/kill-9-resume`](../examples/kill-9-resume).
 - It deliberately removes provider latency/variance to isolate the governance
   effect. The enforcement overhead RiskKernel itself adds is small and measured
   separately; this harness is about dollars, not milliseconds.
