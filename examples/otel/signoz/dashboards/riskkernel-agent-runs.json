@@ -1,0 +1,934 @@
+{
+  "title": "RiskKernel — agent runs",
+  "description": "Spend, token burn, budget halts, tool-call outcomes, and latency by model for your governed agent runs, built from the OpenTelemetry GenAI spans RiskKernel exports. See api/v1/otel-genai.md for the pinned attribute set.",
+  "tags": [
+    "riskkernel",
+    "agents",
+    "genai",
+    "llm"
+  ],
+  "version": "v5",
+  "uploadedGrafana": false,
+  "panelMap": {},
+  "variables": {},
+  "layout": [
+    {
+      "i": "6b910a4b-e51d-59a7-9614-e7066b2435eb",
+      "x": 0,
+      "y": 0,
+      "w": 6,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "fe7534c6-cf29-516a-a4e0-982f2731d4d5",
+      "x": 6,
+      "y": 0,
+      "w": 6,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "cb33b8f3-7b32-5f20-9c34-4af83b74cec9",
+      "x": 12,
+      "y": 0,
+      "w": 6,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "fce208d9-765d-5930-b56a-e140c779d62d",
+      "x": 18,
+      "y": 0,
+      "w": 6,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "e58a7a9e-7061-5992-8a21-a035a1cc1e4e",
+      "x": 0,
+      "y": 6,
+      "w": 12,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "494c3d45-b8d3-5a95-be83-835a647acf09",
+      "x": 12,
+      "y": 6,
+      "w": 12,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "62d38e90-b6ad-5e63-aec1-b9f3fa10d3fe",
+      "x": 0,
+      "y": 12,
+      "w": 12,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "ae1cde96-640b-5941-a5df-64fa9b1ade20",
+      "x": 12,
+      "y": 12,
+      "w": 12,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "0dc68b95-21f3-5164-9506-ff2e5fe3d360",
+      "x": 0,
+      "y": 18,
+      "w": 12,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "4c6f14ff-3baa-58df-a40d-1d0a92d7150d",
+      "x": 12,
+      "y": 18,
+      "w": 12,
+      "h": 6,
+      "moved": false,
+      "static": false
+    },
+    {
+      "i": "7f41705e-9810-513d-9877-2f53c6563113",
+      "x": 0,
+      "y": 24,
+      "w": 12,
+      "h": 6,
+      "moved": false,
+      "static": false
+    }
+  ],
+  "widgets": [
+    {
+      "id": "6b910a4b-e51d-59a7-9614-e7066b2435eb",
+      "title": "Total spend",
+      "description": "Total cost charged to the ledger across governed runs in range.",
+      "panelTypes": "value",
+      "yAxisUnit": "usd",
+      "query": {
+        "queryType": "builder",
+        "id": "e54d8705-19bb-5a53-ba76-9ec9bf59bfd3",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "traces",
+              "queryName": "A",
+              "expression": "A",
+              "disabled": false,
+              "stepInterval": 60,
+              "limit": null,
+              "offset": 0,
+              "pageSize": 10,
+              "orderBy": [],
+              "reduceTo": "sum",
+              "legend": "Spend (USD)",
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "aggregations": [
+                {
+                  "expression": "sum(riskkernel.cost.usd)",
+                  "reduceTo": "sum"
+                }
+              ],
+              "groupBy": [],
+              "filter": {
+                "expression": "resource.service.name = 'riskkernel'"
+              }
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ]
+      },
+      "softMin": 0,
+      "softMax": 0,
+      "fillSpans": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "isStacked": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "timePreferance": "GLOBAL_TIME",
+      "selectedLogFields": [],
+      "selectedTracesFields": []
+    },
+    {
+      "id": "fe7534c6-cf29-516a-a4e0-982f2731d4d5",
+      "title": "Output tokens",
+      "description": "Sum of completion tokens across model calls.",
+      "panelTypes": "value",
+      "yAxisUnit": "short",
+      "query": {
+        "queryType": "builder",
+        "id": "d4789456-bdc2-5462-8719-97f6dbed22b0",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "traces",
+              "queryName": "A",
+              "expression": "A",
+              "disabled": false,
+              "stepInterval": 60,
+              "limit": null,
+              "offset": 0,
+              "pageSize": 10,
+              "orderBy": [],
+              "reduceTo": "sum",
+              "legend": "Output tokens",
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "aggregations": [
+                {
+                  "expression": "sum(gen_ai.usage.output_tokens)",
+                  "reduceTo": "sum"
+                }
+              ],
+              "groupBy": [],
+              "filter": {
+                "expression": "resource.service.name = 'riskkernel'"
+              }
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ]
+      },
+      "softMin": 0,
+      "softMax": 0,
+      "fillSpans": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "isStacked": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "timePreferance": "GLOBAL_TIME",
+      "selectedLogFields": [],
+      "selectedTracesFields": []
+    },
+    {
+      "id": "cb33b8f3-7b32-5f20-9c34-4af83b74cec9",
+      "title": "Model calls",
+      "description": "Count of governed model calls (chat spans).",
+      "panelTypes": "value",
+      "yAxisUnit": "short",
+      "query": {
+        "queryType": "builder",
+        "id": "f71b889c-d68d-5557-a47a-37674e5dbc06",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "traces",
+              "queryName": "A",
+              "expression": "A",
+              "disabled": false,
+              "stepInterval": 60,
+              "limit": null,
+              "offset": 0,
+              "pageSize": 10,
+              "orderBy": [],
+              "reduceTo": "sum",
+              "legend": "Model calls",
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "aggregations": [
+                {
+                  "expression": "count()",
+                  "reduceTo": "sum"
+                }
+              ],
+              "groupBy": [],
+              "filter": {
+                "expression": "gen_ai.operation.name = 'chat'"
+              }
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ]
+      },
+      "softMin": 0,
+      "softMax": 0,
+      "fillSpans": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "isStacked": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "timePreferance": "GLOBAL_TIME",
+      "selectedLogFields": [],
+      "selectedTracesFields": []
+    },
+    {
+      "id": "fce208d9-765d-5930-b56a-e140c779d62d",
+      "title": "Tool calls refused",
+      "description": "Tool calls the governor did not approve (blocked / denied / timeout).",
+      "panelTypes": "value",
+      "yAxisUnit": "short",
+      "query": {
+        "queryType": "builder",
+        "id": "c8ca9d78-ba38-526f-8789-8dab55b39c7a",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "traces",
+              "queryName": "A",
+              "expression": "A",
+              "disabled": false,
+              "stepInterval": 60,
+              "limit": null,
+              "offset": 0,
+              "pageSize": 10,
+              "orderBy": [],
+              "reduceTo": "sum",
+              "legend": "Refused",
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "aggregations": [
+                {
+                  "expression": "count()",
+                  "reduceTo": "sum"
+                }
+              ],
+              "groupBy": [],
+              "filter": {
+                "expression": "gen_ai.operation.name = 'execute_tool' AND riskkernel.tool.status != 'approved'"
+              }
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ]
+      },
+      "softMin": 0,
+      "softMax": 0,
+      "fillSpans": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "isStacked": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "timePreferance": "GLOBAL_TIME",
+      "selectedLogFields": [],
+      "selectedTracesFields": []
+    },
+    {
+      "id": "e58a7a9e-7061-5992-8a21-a035a1cc1e4e",
+      "title": "Spend over time (USD)",
+      "description": "Spend per time bucket.",
+      "panelTypes": "graph",
+      "yAxisUnit": "usd",
+      "query": {
+        "queryType": "builder",
+        "id": "64c108a5-e702-534b-a162-44a31f41c6c8",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "traces",
+              "queryName": "A",
+              "expression": "A",
+              "disabled": false,
+              "stepInterval": 60,
+              "limit": null,
+              "offset": 0,
+              "pageSize": 10,
+              "orderBy": [],
+              "reduceTo": "sum",
+              "legend": "Spend",
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "aggregations": [
+                {
+                  "expression": "sum(riskkernel.cost.usd)"
+                }
+              ],
+              "groupBy": [],
+              "filter": {
+                "expression": "resource.service.name = 'riskkernel'"
+              }
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ]
+      },
+      "softMin": 0,
+      "softMax": 0,
+      "fillSpans": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "isStacked": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "timePreferance": "GLOBAL_TIME",
+      "selectedLogFields": [],
+      "selectedTracesFields": []
+    },
+    {
+      "id": "494c3d45-b8d3-5a95-be83-835a647acf09",
+      "title": "Spend by run (USD)",
+      "description": "Spend grouped by governed run id.",
+      "panelTypes": "graph",
+      "yAxisUnit": "usd",
+      "query": {
+        "queryType": "builder",
+        "id": "459d84dd-b172-5f6d-9c8b-eecbd6e40a3e",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "traces",
+              "queryName": "A",
+              "expression": "A",
+              "disabled": false,
+              "stepInterval": 60,
+              "limit": null,
+              "offset": 0,
+              "pageSize": 10,
+              "orderBy": [],
+              "reduceTo": "sum",
+              "legend": "{{riskkernel.run.id}}",
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "aggregations": [
+                {
+                  "expression": "sum(riskkernel.cost.usd)"
+                }
+              ],
+              "groupBy": [
+                {
+                  "key": "riskkernel.run.id",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "riskkernel.run.id--string--tag--false"
+                }
+              ],
+              "filter": {
+                "expression": "resource.service.name = 'riskkernel'"
+              }
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ]
+      },
+      "softMin": 0,
+      "softMax": 0,
+      "fillSpans": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "isStacked": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "timePreferance": "GLOBAL_TIME",
+      "selectedLogFields": [],
+      "selectedTracesFields": []
+    },
+    {
+      "id": "62d38e90-b6ad-5e63-aec1-b9f3fa10d3fe",
+      "title": "p95 latency by model",
+      "description": "95th percentile model-call duration, per requested model.",
+      "panelTypes": "graph",
+      "yAxisUnit": "ns",
+      "query": {
+        "queryType": "builder",
+        "id": "4573d5b7-33d8-55f7-87ae-56428b920f0f",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "traces",
+              "queryName": "A",
+              "expression": "A",
+              "disabled": false,
+              "stepInterval": 60,
+              "limit": null,
+              "offset": 0,
+              "pageSize": 10,
+              "orderBy": [],
+              "reduceTo": "sum",
+              "legend": "{{gen_ai.request.model}}",
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "aggregations": [
+                {
+                  "expression": "p95(durationNano)"
+                }
+              ],
+              "groupBy": [
+                {
+                  "key": "gen_ai.request.model",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "gen_ai.request.model--string--tag--false"
+                }
+              ],
+              "filter": {
+                "expression": "gen_ai.operation.name = 'chat'"
+              }
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ]
+      },
+      "softMin": 0,
+      "softMax": 0,
+      "fillSpans": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "isStacked": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "timePreferance": "GLOBAL_TIME",
+      "selectedLogFields": [],
+      "selectedTracesFields": []
+    },
+    {
+      "id": "ae1cde96-640b-5941-a5df-64fa9b1ade20",
+      "title": "Model-call rate by model",
+      "description": "Model-call rate, per requested model.",
+      "panelTypes": "graph",
+      "yAxisUnit": "reqps",
+      "query": {
+        "queryType": "builder",
+        "id": "4573d5b7-33d8-55f7-87ae-56428b920f0f",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "traces",
+              "queryName": "A",
+              "expression": "A",
+              "disabled": false,
+              "stepInterval": 60,
+              "limit": null,
+              "offset": 0,
+              "pageSize": 10,
+              "orderBy": [],
+              "reduceTo": "sum",
+              "legend": "{{gen_ai.request.model}}",
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "aggregations": [
+                {
+                  "expression": "rate()"
+                }
+              ],
+              "groupBy": [
+                {
+                  "key": "gen_ai.request.model",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "gen_ai.request.model--string--tag--false"
+                }
+              ],
+              "filter": {
+                "expression": "gen_ai.operation.name = 'chat'"
+              }
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ]
+      },
+      "softMin": 0,
+      "softMax": 0,
+      "fillSpans": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "isStacked": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "timePreferance": "GLOBAL_TIME",
+      "selectedLogFields": [],
+      "selectedTracesFields": []
+    },
+    {
+      "id": "0dc68b95-21f3-5164-9506-ff2e5fe3d360",
+      "title": "Output tokens by model",
+      "description": "Completion-token burn, per requested model.",
+      "panelTypes": "graph",
+      "yAxisUnit": "short",
+      "query": {
+        "queryType": "builder",
+        "id": "4573d5b7-33d8-55f7-87ae-56428b920f0f",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "traces",
+              "queryName": "A",
+              "expression": "A",
+              "disabled": false,
+              "stepInterval": 60,
+              "limit": null,
+              "offset": 0,
+              "pageSize": 10,
+              "orderBy": [],
+              "reduceTo": "sum",
+              "legend": "{{gen_ai.request.model}}",
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "aggregations": [
+                {
+                  "expression": "sum(gen_ai.usage.output_tokens)"
+                }
+              ],
+              "groupBy": [
+                {
+                  "key": "gen_ai.request.model",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "gen_ai.request.model--string--tag--false"
+                }
+              ],
+              "filter": {
+                "expression": "gen_ai.operation.name = 'chat'"
+              }
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ]
+      },
+      "softMin": 0,
+      "softMax": 0,
+      "fillSpans": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "isStacked": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "timePreferance": "GLOBAL_TIME",
+      "selectedLogFields": [],
+      "selectedTracesFields": []
+    },
+    {
+      "id": "4c6f14ff-3baa-58df-a40d-1d0a92d7150d",
+      "title": "Tool calls by outcome",
+      "description": "Governed tool calls grouped by outcome (approved / blocked / denied / timeout).",
+      "panelTypes": "graph",
+      "yAxisUnit": "short",
+      "query": {
+        "queryType": "builder",
+        "id": "8f6c880a-74fe-5aca-8635-12be62e4c7a9",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "traces",
+              "queryName": "A",
+              "expression": "A",
+              "disabled": false,
+              "stepInterval": 60,
+              "limit": null,
+              "offset": 0,
+              "pageSize": 10,
+              "orderBy": [],
+              "reduceTo": "sum",
+              "legend": "{{riskkernel.tool.status}}",
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "aggregations": [
+                {
+                  "expression": "count()"
+                }
+              ],
+              "groupBy": [
+                {
+                  "key": "riskkernel.tool.status",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "riskkernel.tool.status--string--tag--false"
+                }
+              ],
+              "filter": {
+                "expression": "gen_ai.operation.name = 'execute_tool'"
+              }
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ]
+      },
+      "softMin": 0,
+      "softMax": 0,
+      "fillSpans": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "isStacked": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "timePreferance": "GLOBAL_TIME",
+      "selectedLogFields": [],
+      "selectedTracesFields": []
+    },
+    {
+      "id": "7f41705e-9810-513d-9877-2f53c6563113",
+      "title": "Budget halts by reason",
+      "description": "Spans where the governor halted a run, grouped by halt reason.",
+      "panelTypes": "graph",
+      "yAxisUnit": "short",
+      "query": {
+        "queryType": "builder",
+        "id": "26948412-b898-5e38-a04a-6090a0dc99b4",
+        "builder": {
+          "queryData": [
+            {
+              "dataSource": "traces",
+              "queryName": "A",
+              "expression": "A",
+              "disabled": false,
+              "stepInterval": 60,
+              "limit": null,
+              "offset": 0,
+              "pageSize": 10,
+              "orderBy": [],
+              "reduceTo": "sum",
+              "legend": "{{riskkernel.halt.reason}}",
+              "functions": [],
+              "having": {
+                "expression": ""
+              },
+              "aggregations": [
+                {
+                  "expression": "count()"
+                }
+              ],
+              "groupBy": [
+                {
+                  "key": "riskkernel.halt.reason",
+                  "dataType": "string",
+                  "type": "tag",
+                  "isColumn": false,
+                  "isJSON": false,
+                  "id": "riskkernel.halt.reason--string--tag--false"
+                }
+              ],
+              "filter": {
+                "expression": "riskkernel.halt.reason EXISTS"
+              }
+            }
+          ],
+          "queryFormulas": []
+        },
+        "clickhouse_sql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ],
+        "promql": [
+          {
+            "name": "A",
+            "legend": "",
+            "disabled": false,
+            "query": ""
+          }
+        ]
+      },
+      "softMin": 0,
+      "softMax": 0,
+      "fillSpans": false,
+      "nullZeroValues": "zero",
+      "opacity": "1",
+      "isStacked": false,
+      "thresholds": [],
+      "columnUnits": {},
+      "timePreferance": "GLOBAL_TIME",
+      "selectedLogFields": [],
+      "selectedTracesFields": []
+    }
+  ]
+}

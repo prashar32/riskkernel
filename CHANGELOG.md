@@ -10,6 +10,14 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Importable SigNoz dashboard.** [`examples/otel/signoz`](examples/otel/signoz)
+  ships a ready-made SigNoz dashboard (spend per run, budget halts by reason,
+  tool-call outcomes, latency and token burn by model) built from the same
+  OpenTelemetry GenAI spans RiskKernel already exports — so teams on SigNoz get the
+  "feed your existing observability" story as one JSON import, matching the existing
+  Grafana + Tempo example. Queries reference only the attribute names pinned in
+  [`api/v1/otel-genai.md`](api/v1/otel-genai.md); a short README covers pointing the
+  OTLP exporter at SigNoz (self-hosted and Cloud).
 - **One-command docker-compose quickstart.** [`examples/quickstart-compose`](examples/quickstart-compose)
   brings up the daemon, a stand-in mock LLM, and a tiny looping agent with a single
   `docker compose up` — so a newcomer watches the deterministic loop budget hard-stop
