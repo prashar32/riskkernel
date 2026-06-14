@@ -103,6 +103,11 @@ crew = Crew(agents=[...], tasks=[...], step_callback=RiskKernelStepCallback(run)
 from riskkernel.adapters.autogen import GovernedChatCompletionClient
 client = GovernedChatCompletionClient(model_client, run)   # drop-in for the real client
 agent = AssistantAgent("assistant", model_client=client)   # halts the agent at budget
+
+# PydanticAI — wrap your model (one governed step per model request; halts the agent at budget)
+from pydantic_ai import Agent
+from riskkernel.adapters.pydantic_ai import govern
+agent = Agent(govern("anthropic:claude-sonnet-4-5", run, gate_tools=True))
 ```
 
 > AutoGen halts the run either way, but a *team* (`RoundRobinGroupChat`, …) re-raises

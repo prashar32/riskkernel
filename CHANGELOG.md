@@ -44,6 +44,20 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   `step_callback` is synchronous and re-raised by the executor, unlike its
   fire-and-forget event bus, which would drop it). `crewai` is lazily imported, so it
   stays an optional dependency; supported against `crewai` >= 0.80, < 2.
+- **PydanticAI adapter (Python SDK).** `from riskkernel.adapters.pydantic_ai import
+  govern` — wrap your model with `Agent(govern(model, run))` to bind a PydanticAI
+  agent to a governed run with no other code change. One model request counts as one
+  governed step, so the deterministic loop/time budget halts a runaway agent; with
+  `gate_tools=True` each tool call the model proposes routes through the human-approval
+  gate before the agent executes it. The halt is raised from the model wrapper and
+  propagates out of `agent.run()` / `agent.run_sync()` — PydanticAI only retries its
+  own `ModelRetry` signal, so the deterministic `BudgetExceeded`/`ApprovalDenied`
+  surfaces to the caller and stops the agent rather than being retried into another
+  paid request. Built on PydanticAI's `WrapperModel` contract, which forwards every
+  model method to the wrapped model and is stable across the post-1.0 line; both the
+  non-streaming and streaming request paths are governed. `pydantic-ai` is lazily
+  imported, so it stays an optional dependency; supported against `pydantic-ai`
+  (`pydantic-ai-slim`) >= 1, < 2.
 - **Streaming proxy.** Both `POST /v1/chat/completions` and `POST /v1/messages` now
   support `stream:true`: the budget is enforced before the stream opens, the
   provider's SSE is forwarded to the client verbatim (authentic OpenAI or Anthropic

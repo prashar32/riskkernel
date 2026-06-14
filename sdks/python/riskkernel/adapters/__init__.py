@@ -8,4 +8,5 @@ third-party dependencies and you only pay for what you use.
 - ``openai_agents``  — RunHooks for the OpenAI Agents SDK (steps + approval gate).
 - ``crewai``         — a step_callback for CrewAI (steps + tool approval gate).
 - ``autogen``        — a model-client wrapper for AutoGen v0.4+ (steps + tool gate).
+- ``pydantic_ai``    — a model wrapper for PydanticAI (steps + tool approval gate).
 """
