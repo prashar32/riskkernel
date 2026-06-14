@@ -49,6 +49,10 @@ It is **not** another gateway (LiteLLM/Portkey own routing), **not** another obs
 
 ## Quickstart (60 seconds)
 
+> **No key, one command?** [`examples/quickstart-compose`](examples/quickstart-compose)
+> is a `docker compose up` demo that hard-stops a runaway agent with no API key and
+> no local setup — the fastest way to see the loop-killer.
+
 Run the daemon with your key (nothing leaves your machine except calls to the
 provider you choose). Unconfigured, every run gets a safe default budget —
 $5 / 100 loops / 1 hour — so nothing is ever unbounded; here we set an explicit

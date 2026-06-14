@@ -1,0 +1,49 @@
+name: riskkernel-quickstart
+
+# One command — `docker compose up` — to watch RiskKernel hard-stop a runaway agent,
+# with NO API key and no local Go/Python setup. Three tiny services:
+#   mock-llm     a stand-in OpenAI-compatible upstream (one canned reply) so the
+#                demo needs no real provider or key
+#   riskkernel   the governance daemon: a hard loop budget, forwarding to the mock
+#   sample-agent a minimal "agent" that just loops through the proxy until it's killed
+#
+# To govern a REAL app instead, see the "Use it for real" section in README.md.
+
+services:
+  mock-llm:
+    image: nginx:alpine
+    volumes:
+      - ./mock-llm.conf:/etc/nginx/conf.d/default.conf:ro
+
+  riskkernel:
+    image: ghcr.io/prashar32/riskkernel:latest
+    # Always pull, so a stale locally-cached :latest can't make the demo behave
+    # like an older RiskKernel (the quickstart should "just work" on any machine).
+    pull_policy: always
+    depends_on:
+      - mock-llm
+    ports:
+      - "7070:7070"
+    environment:
+      # The star of the demo: a runaway loop is killed after 5 model calls.
+      RISKKERNEL_DEFAULT_LOOPS: "5"
+      # Unlimited on every other dimension so the LOOP budget is the sole enforcer
+      # and the halt reason is unambiguous.
+      RISKKERNEL_DEFAULT_DOLLARS: "0"
+      RISKKERNEL_DEFAULT_TOKENS: "0"
+      RISKKERNEL_DEFAULT_SECONDS: "0"
+      # A dummy key activates the OpenAI provider; the call is intercepted and
+      # forwarded to the mock above — no real provider, no real key leaves anywhere.
+      OPENAI_API_KEY: "sk-quickstart-mock"
+      RISKKERNEL_OPENAI_BASE_URL: "http://mock-llm"
+
+  sample-agent:
+    image: curlimages/curl:8.11.1
+    depends_on:
+      riskkernel:
+        condition: service_healthy
+    volumes:
+      - ./agent.sh:/agent.sh:ro
+    entrypoint: ["sh", "/agent.sh"]
+    environment:
+      PROXY: "http://riskkernel:7070"

@@ -9,6 +9,14 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+### Added
+- **One-command docker-compose quickstart.** [`examples/quickstart-compose`](examples/quickstart-compose)
+  brings up the daemon, a stand-in mock LLM, and a tiny looping agent with a single
+  `docker compose up` — so a newcomer watches the deterministic loop budget hard-stop
+  a runaway agent (HTTP 402, `loop_budget_exceeded`) with **no API key** and no local
+  Go/Python setup. The daemon pulls fresh on each run so a stale cached image can't
+  skew the demo; a short README shows how to swap the mock for a real provider.
+
 ## [0.7.0] - 2026-06-14
 
 Reach and scale. RiskKernel now plugs into the whole Python agent ecosystem —
