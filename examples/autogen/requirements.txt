@@ -1,0 +1,9 @@
+# This AutoGen example needs autogen-agentchat + autogen-core (the v0.4+ line — the
+# model-client protocol the adapter wraps) and the RiskKernel Python SDK (stdlib-only).
+# Tested with autogen-agentchat / autogen-core 0.4+; the adapter supports >=0.4,<1.
+autogen-agentchat>=0.4,<1
+autogen-core>=0.4,<1
+riskkernel
+
+# Working inside a clone and want your local SDK instead? From THIS directory:
+#     pip install ../../sdks/python
