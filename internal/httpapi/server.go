@@ -19,6 +19,7 @@ import (
 	"github.com/prashar32/riskkernel/internal/httpx"
 	"github.com/prashar32/riskkernel/internal/mcp"
 	"github.com/prashar32/riskkernel/internal/memory"
+	"github.com/prashar32/riskkernel/internal/otel"
 	"github.com/prashar32/riskkernel/internal/runs"
 	"github.com/prashar32/riskkernel/internal/storage"
 	"github.com/prashar32/riskkernel/internal/version"
@@ -33,13 +34,14 @@ type Server struct {
 	slack     *approval.SlackNotifier // nil when the Slack channel isn't configured
 	mcp       *mcp.Gateway
 	memory    *memory.Reader
+	ingress   *otel.Ingress // nil unless the OTLP trace receiver is enabled
 	log       *slog.Logger
 }
 
 // New constructs a Server.
 func New(cfg *config.Config, gw *gateway.Gateway, mgr *runs.Manager, gate *approval.Gate,
-	slack *approval.SlackNotifier, mcpGW *mcp.Gateway, mem *memory.Reader, log *slog.Logger) *Server {
-	return &Server{cfg: cfg, gateway: gw, runs: mgr, approvals: gate, slack: slack, mcp: mcpGW, memory: mem, log: log}
+	slack *approval.SlackNotifier, mcpGW *mcp.Gateway, mem *memory.Reader, ingress *otel.Ingress, log *slog.Logger) *Server {
+	return &Server{cfg: cfg, gateway: gw, runs: mgr, approvals: gate, slack: slack, mcp: mcpGW, memory: mem, ingress: ingress, log: log}
 }
 
 // Handler returns the root HTTP handler with all routes mounted.
@@ -105,6 +107,14 @@ func (s *Server) Handler() http.Handler {
 	// of the API and only registered when a durable store is the source of truth.
 	if s.runs != nil && s.runs.Store() != nil {
 		mux.HandleFunc("GET /metrics", s.requireAuth(s.handleMetrics))
+	}
+
+	// Surface 3 (consume side) — the OTLP/HTTP trace receiver. Off unless enabled;
+	// authenticated like the rest of the API (OTLP exporters carry the bearer token
+	// via OTEL_EXPORTER_OTLP_HEADERS). Standard OTLP path so any exporter can target
+	// it with one env var.
+	if s.ingress != nil {
+		mux.HandleFunc("POST /v1/traces", s.requireAuth(s.ingress.HandleTraces))
 	}
 
 	return s.recoverer(mux)

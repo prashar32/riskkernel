@@ -40,6 +40,7 @@ type Deps struct {
 	Slack     *approval.SlackNotifier // nil when the Slack channel isn't configured
 	MCP       *mcp.Gateway            // nil when no upstream is configured
 	Memory    *memory.Reader
+	Ingress   *otel.Ingress // nil unless the OTLP trace receiver is enabled
 }
 
 // Close releases dependencies that hold resources (the tracer's buffered spans,
@@ -147,6 +148,13 @@ func Build(cfg *config.Config) (*Deps, error) {
 		log.Warn("RISKKERNEL_MEMORY_EMBEDDINGS is set but embeddings are not implemented in v0.1; using deterministic keyword search")
 	}
 
+	// OTLP trace receiver (Surface 3, consume side) — off unless explicitly enabled.
+	var ingress *otel.Ingress
+	if cfg.OTel.IngressEnabled {
+		ingress = otel.NewIngress(mgr, prices, log)
+		log.Info("otlp trace ingress enabled", "path", "POST /v1/traces")
+	}
+
 	return &Deps{
 		Config:    cfg,
 		Log:       log,
@@ -160,6 +168,7 @@ func Build(cfg *config.Config) (*Deps, error) {
 		Slack:     slackNotifier,
 		MCP:       mcpGW,
 		Memory:    memReader,
+		Ingress:   ingress,
 	}, nil
 }
 

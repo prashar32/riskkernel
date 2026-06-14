@@ -10,6 +10,18 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **OTLP trace ingress.** RiskKernel can now act as an OTLP/HTTP trace endpoint
+  (`POST /v1/traces`), the consume side of the OpenTelemetry surface — point any
+  exporter at it (`OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:7070`) and the GenAI
+  model calls an app already traces (OpenLLMetry, the OpenAI Agents SDK, the Vercel
+  AI SDK) show up against governed runs with tokens and cost metered into the
+  ledger. Correlates by `riskkernel.run.id` (on the span or its resource); accepts
+  protobuf and JSON and replies with an OTLP `ExportTraceServiceResponse` (a span
+  without a run id is reported as a rejected partial-success span). Scope is observe
+  + meter — a consumed call is recorded (and marks the run halted if it crosses the
+  budget) but isn't blocked after the fact. Off by default; enable with
+  `RISKKERNEL_OTEL_INGRESS_ENABLED` and authenticated like the rest of the API. See
+  [`docs/OTLP_INGRESS.md`](docs/OTLP_INGRESS.md).
 - **CrewAI adapter (Python SDK).** `from riskkernel.adapters.crewai import
   RiskKernelStepCallback` — a `step_callback` you wire onto a CrewAI `Agent` or the
   whole `Crew` to bind it to a governed run with no other code change. One agent step

@@ -69,7 +69,26 @@ conventions don't model. Names are stable per COMPATIBILITY.md.
 
 ## Consumption (ingress)
 
-When acting as an OTLP endpoint, RiskKernel reads incoming `gen_ai.usage.*` to feed
-the cost ledger and `gen_ai.request.model` / `gen_ai.system` to attribute spend,
-correlating by `riskkernel.run.id` when present (or a configured trace→run mapping
-otherwise). This lets RiskKernel govern apps it did not directly instrument.
+RiskKernel can act as an OTLP/HTTP trace endpoint at **`POST /v1/traces`** — the
+standard OTLP path, so any exporter targets it with one env var
+(`OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:7070`). It accepts both protobuf
+(`application/x-protobuf`, the OTLP default) and JSON (`application/json`) and
+replies with an OTLP `ExportTraceServiceResponse` in the same encoding.
+
+For each span carrying token usage (`gen_ai.usage.input_tokens` /
+`gen_ai.usage.output_tokens`), it reads `gen_ai.response.model` (falling back to
+`gen_ai.request.model`) and `gen_ai.system` and meters the call's tokens and cost
+into the ledger, correlating to a governed run by `riskkernel.run.id` (taken from
+the span, falling back to the resource). A span without a run id is observed and
+reported as a rejected span in the OTLP partial-success response, but not metered.
+Spans without usage (tool calls, retrieval, framework spans) are ignored.
+
+This lets RiskKernel make spend visible for apps it did not directly proxy. Scope
+is **observe + meter**: a consumed span records against the run's ledger (and marks
+the run halted if its budget is crossed) but does not retroactively block a call
+that already happened — governing consumed spans is a separate, future step.
+
+The receiver is **off by default**; no listener is mounted unless
+`RISKKERNEL_OTEL_INGRESS_ENABLED` is set. It is authenticated like the rest of the
+API, so an exporter must carry the bearer token via
+`OTEL_EXPORTER_OTLP_HEADERS=authorization=Bearer <token>` when a token is set.
