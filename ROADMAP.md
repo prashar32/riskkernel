@@ -16,46 +16,47 @@ The core runtime is built and released:
   that halt a run *before* it overspends ([`docs/BUDGETS.md`](docs/BUDGETS.md)).
 - **Crash-resume** — `kill -9` a run mid-flight and resume it without re-spending
   ([`docs/RESUME.md`](docs/RESUME.md)).
-- **OpenAI-compatible proxy** — point one env var at RiskKernel and every call is
-  metered, priced, and budget-enforced (BYO key).
+- **OpenAI- and Anthropic-compatible proxy** — point one env var at RiskKernel and
+  every call (streaming or not) is metered, priced, and budget-enforced (BYO key).
+  Native providers: Anthropic, OpenAI, and Ollama (local, key-free).
 - **Human-in-the-loop approval** — gate side-effecting tools; resolve from the CLI,
   a local web page, a webhook, or **Slack** ([`docs/APPROVALS_SLACK.md`](docs/APPROVALS_SLACK.md)).
-- **Policy-as-code** — named policy bundles via `POST /v1/policies` or a reviewed
-  `riskkernel.yaml`, with a dry-run against recorded runs ([`docs/POLICY.md`](docs/POLICY.md)).
-- **OpenTelemetry GenAI export** — cost/halt/tool spans into your existing backend,
-  with a ready-made Grafana + Tempo dashboard.
+- **Policy-as-code, enforced per-run** — named policy bundles via `POST /v1/policies`
+  or a reviewed `riskkernel.yaml`, with a dry-run against recorded runs; a run created
+  under a bundle is governed by its tool allowlist and approval rules, not just its
+  budget ([`docs/POLICY.md`](docs/POLICY.md)).
+- **OpenTelemetry GenAI — export and ingress** — emit cost/halt/tool spans into your
+  existing backend (ready-made **Grafana + Tempo** and **SigNoz** dashboards), *and*
+  ingest GenAI spans (`POST /v1/traces`) to meter apps RiskKernel never proxied
+  ([`docs/OTLP_INGRESS.md`](docs/OTLP_INGRESS.md)).
+- **Spend attribution** — roll cost up across runs by team/user/feature
+  (`riskkernel audit summary --by metadata.team`), with the run name and tags also on
+  the OTel spans so the same grouping works in your backend.
 - **MCP gateway** — govern an agent's `tools/call` (allowlist + approval + audit).
 - **Compliance evidence export** — controls mapped to OWASP / EU AI Act references
   with a tamper-evident, hash-chained event log ([`docs/COMPLIANCE.md`](docs/COMPLIANCE.md)).
 - **Git-native memory** — markdown/YAML the agent reads, that you own.
+- **Storage** — zero-config SQLite by default; an opt-in **Postgres** backend for
+  multi-instance / HA behind the same `Store` interface ([`docs/POSTGRES.md`](docs/POSTGRES.md)).
 - **SDKs** — Python (`pip install riskkernel`) and TypeScript (`@riskkernel/sdk`),
-  with LangChain, OpenAI Agents, and Vercel AI SDK adapters.
+  with adapters for the Claude Agent SDK, OpenAI Agents, LangChain, LlamaIndex,
+  CrewAI, AutoGen, and PydanticAI (Python), and the Vercel AI SDK (TypeScript).
+- **Operability** — a Prometheus `/metrics` endpoint, a `riskkernel doctor` setup
+  check, shell completions, and a one-command `docker compose` quickstart.
 - **Measured, low overhead** — the enforcement decision is ~150 ns and zero
-  allocations per call ([`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)).
+  allocations per call, with a reproducible cost benchmark and a timed `kill -9`
+  recovery benchmark (exact-once spend) behind the claims ([`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)).
 
 ## Next
 
 Where the work is heading near-term:
 
-- **Per-run policy enforcement** — a referenced policy bundle applies its budget to a
-  run today; extend that to enforce the bundle's tool allowlist and approval rules
-  per-run, not just globally.
-- **More framework adapters** — CrewAI ([#83](https://github.com/prashar32/riskkernel/issues/83)),
-  AutoGen ([#84](https://github.com/prashar32/riskkernel/issues/84)),
-  PydanticAI ([#85](https://github.com/prashar32/riskkernel/issues/85)),
-  LlamaIndex ([#86](https://github.com/prashar32/riskkernel/issues/86)).
-- **More native providers** — AWS Bedrock ([#24](https://github.com/prashar32/riskkernel/issues/24))
-  and local Ollama ([#23](https://github.com/prashar32/riskkernel/issues/23)).
-- **Streaming proxy** — SSE pass-through with mid-stream budget enforcement
-  ([#22](https://github.com/prashar32/riskkernel/issues/22)).
-- **OTLP ingress** — consume GenAI spans to govern apps RiskKernel didn't instrument
-  ([#90](https://github.com/prashar32/riskkernel/issues/90)).
-- **Postgres storage backend** — behind the same `Store` interface, SQLite stays the
-  default ([#25](https://github.com/prashar32/riskkernel/issues/25)).
-- **Operability** — a `/metrics` endpoint ([#91](https://github.com/prashar32/riskkernel/issues/91)),
-  a `riskkernel doctor` setup check ([#94](https://github.com/prashar32/riskkernel/issues/94)),
-  shell completions ([#93](https://github.com/prashar32/riskkernel/issues/93)),
-  and a Homebrew tap ([#97](https://github.com/prashar32/riskkernel/issues/97)).
+- **More native providers** — AWS Bedrock ([#24](https://github.com/prashar32/riskkernel/issues/24));
+  the long tail via LiteLLM-as-upstream.
+- **More backend dashboards** — a Datadog dashboard to join the Grafana and SigNoz
+  examples.
+- **Easier install** — a Homebrew tap for `brew install riskkernel`
+  ([#97](https://github.com/prashar32/riskkernel/issues/97)).
 
 ## Exploring
 
