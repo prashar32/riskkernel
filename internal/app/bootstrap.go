@@ -172,9 +172,19 @@ func Build(cfg *config.Config) (*Deps, error) {
 	}, nil
 }
 
-// OpenStore creates the data directory and opens the SQLite store (the file the
-// user owns), running forward migrations on the way up.
+// OpenStore opens the durable state backend, running forward migrations on the way
+// up. SQLite (the zero-config file the user owns) is the default; setting
+// RISKKERNEL_DATABASE_URL selects the opt-in Postgres backend instead, for
+// multi-instance / HA deployments.
 func OpenStore(cfg *config.Config, log *slog.Logger) (storage.Store, error) {
+	if cfg.DatabaseURL != "" {
+		store, err := storage.OpenPostgres(cfg.DatabaseURL)
+		if err != nil {
+			return nil, err
+		}
+		log.Info("state store ready", "backend", "postgres")
+		return store, nil
+	}
 	if err := os.MkdirAll(cfg.DataDir, 0o750); err != nil {
 		return nil, fmt.Errorf("creating data dir %q: %w", cfg.DataDir, err)
 	}
@@ -183,7 +193,7 @@ func OpenStore(cfg *config.Config, log *slog.Logger) (storage.Store, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Info("state store ready", "path", dbPath)
+	log.Info("state store ready", "backend", "sqlite", "path", dbPath)
 	return store, nil
 }
 

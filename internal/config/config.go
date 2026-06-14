@@ -34,6 +34,12 @@ type Config struct {
 	// DataDir is where the SQLite state file lives. Env: RISKKERNEL_DATA_DIR
 	// (default "./data"). The file in here is the one the user owns.
 	DataDir string
+	// DatabaseURL, when set, selects the opt-in Postgres state backend instead of
+	// the default SQLite file — for multi-instance / HA deployments. A standard
+	// libpq/pgx connection string (postgres://user:pass@host:5432/db?sslmode=...).
+	// Env: RISKKERNEL_DATABASE_URL. Empty keeps the zero-config SQLite default.
+	// Carries credentials — never logged.
+	DatabaseURL string
 	// APIToken is the single-tenant bearer token guarding the API. Env:
 	// RISKKERNEL_API_TOKEN. Empty means auth is disabled (local-only use).
 	APIToken string
@@ -212,6 +218,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Port:             port,
 		DataDir:          getenvDefault("RISKKERNEL_DATA_DIR", "./data"),
+		DatabaseURL:      os.Getenv("RISKKERNEL_DATABASE_URL"),
 		APIToken:         os.Getenv("RISKKERNEL_API_TOKEN"),
 		DefaultProvider:  getenvDefault("RISKKERNEL_DEFAULT_PROVIDER", "anthropic"),
 		AnthropicAPIKey:  os.Getenv("ANTHROPIC_API_KEY"),
