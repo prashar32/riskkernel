@@ -9,6 +9,18 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-06-14
+
+Reach and scale. RiskKernel now plugs into the whole Python agent ecosystem —
+adapters for **LlamaIndex, CrewAI, AutoGen, and PydanticAI** join the existing
+LangChain and OpenAI/Claude Agent SDK adapters — and completes the OpenTelemetry
+surface with an **OTLP trace ingress** that meters apps it didn't proxy. Streaming
+now works on **both** the OpenAI- and Anthropic-compatible endpoints, a native
+**Ollama** provider runs local models, and an opt-in **Postgres** backend takes the
+state layer multi-instance. Plus operability: a Prometheus **`/metrics`** endpoint,
+shell completions, **`riskkernel doctor`**, and per-run policy enforcement. No
+breaking API changes; forward-compatible with v0.6.x state.
+
 ### Added
 - **Postgres storage backend (opt-in).** For multi-instance / HA deployments,
   RiskKernel can run its state on Postgres instead of the default SQLite file — set
@@ -450,7 +462,8 @@ and a memory you own, in one self-hosted binary. Three integration surfaces
   (keyless) on each `v*` tag; GoReleaser binaries + checksums + GitHub release;
   `govulncheck` + CodeQL in CI. One-line `docker run` quickstart.
 
-[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/prashar32/riskkernel/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/prashar32/riskkernel/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/prashar32/riskkernel/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/prashar32/riskkernel/compare/v0.3.0...v0.4.0
