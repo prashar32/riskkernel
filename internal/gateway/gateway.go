@@ -6,12 +6,13 @@
 // priced into the cost ledger, and forwarded to the real provider with the
 // user's key.
 //
-// Streaming (`stream:true`) is supported on the OpenAI-compatible endpoint: the
-// budget is enforced before the stream opens, the provider's SSE is forwarded to
-// the client verbatim while token usage is metered from it, and the run's context
-// (time budget / kill switch / client disconnect) cuts a live stream. Providers
-// that don't implement streaming, and the Anthropic /v1/messages endpoint, reject
-// a stream request with a clear error rather than silently degrading.
+// Streaming (`stream:true`) is supported on both endpoints (OpenAI
+// /v1/chat/completions and Anthropic /v1/messages): the budget is enforced before
+// the stream opens, the provider's SSE is forwarded to the client verbatim while
+// token usage is metered from it, and the run's context (time budget / kill switch
+// / client disconnect) cuts a live stream. A provider whose backend doesn't
+// implement streaming rejects a stream request with a clear error rather than
+// silently degrading.
 package gateway
 
 import (

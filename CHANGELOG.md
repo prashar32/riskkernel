@@ -10,6 +10,15 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Streaming proxy.** Both `POST /v1/chat/completions` and `POST /v1/messages` now
+  support `stream:true`: the budget is enforced before the stream opens, the
+  provider's SSE is forwarded to the client verbatim (authentic OpenAI or Anthropic
+  chunks, no translation) while token usage is metered from the stream's own
+  accounting, and the run's context — time budget, kill switch, or client
+  disconnect — cuts a live stream. Dollar/token budgets are checked pre-stream and
+  recorded after (so the next call is refused if it went over). A provider whose
+  backend doesn't implement streaming returns a clear 501 rather than silently
+  buffering.
 - **Python SDK: LlamaIndex adapter.** `RiskKernelCallbackHandler` (from
   `riskkernel.adapters.llama_index`) is a LlamaIndex `BaseCallbackHandler` that ticks
   one governed step per LLM call (`CBEventType.LLM`), so a run's loop/time budget is
