@@ -20,7 +20,7 @@ var topLevelCommands = []string{
 // approvals.go, memory.go).
 var subCommands = map[string][]string{
 	"runs":      {"list", "resume"},
-	"audit":     {"export", "tools", "compliance"},
+	"audit":     {"export", "tools", "compliance", "summary"},
 	"policy":    {"validate", "dry-run"},
 	"approvals": {"list", "approve", "deny"},
 	"memory":    {"list", "show"},

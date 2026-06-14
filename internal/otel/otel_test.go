@@ -70,6 +70,39 @@ func TestRecordCall_Attributes(t *testing.T) {
 	}
 }
 
+func TestRecordCall_RunNameAndMetadata(t *testing.T) {
+	tr, sr := newRecording()
+	tr.RecordCall(context.Background(), Call{
+		RunID: "r1", RunName: "nightly-report", StepIndex: 1,
+		Provider: "openai", Operation: "chat", RequestModel: "gpt-4o",
+		Metadata: map[string]string{"team": "payments", "env": "prod"},
+	})
+	a := attrMap(sr.Ended()[0].Attributes())
+	if a[attrRunName].AsString() != "nightly-report" {
+		t.Errorf("run.name = %v, want nightly-report", a[attrRunName])
+	}
+	if a["riskkernel.run.meta.team"].AsString() != "payments" {
+		t.Errorf("meta.team = %v, want payments", a["riskkernel.run.meta.team"])
+	}
+	if a["riskkernel.run.meta.env"].AsString() != "prod" {
+		t.Errorf("meta.env = %v, want prod", a["riskkernel.run.meta.env"])
+	}
+}
+
+func TestRecordCall_NoNameNoMetadata(t *testing.T) {
+	// An unnamed, untagged run emits neither the name nor any meta.* attribute.
+	tr, sr := newRecording()
+	tr.RecordCall(context.Background(), Call{
+		RunID: "r1", StepIndex: 1, Provider: "openai", Operation: "chat", RequestModel: "gpt-4o",
+	})
+	for _, kv := range sr.Ended()[0].Attributes() {
+		k := string(kv.Key)
+		if k == attrRunName || len(k) > len(attrRunMetaPrefix) && k[:len(attrRunMetaPrefix)] == attrRunMetaPrefix {
+			t.Errorf("unexpected attribute %q on an unnamed/untagged run", k)
+		}
+	}
+}
+
 func TestRecordCall_Error(t *testing.T) {
 	tr, sr := newRecording()
 	tr.RecordCall(context.Background(), Call{

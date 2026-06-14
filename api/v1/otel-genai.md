@@ -57,6 +57,8 @@ conventions don't model. Names are stable per COMPATIBILITY.md.
 | Attribute | Type | Example | Notes |
 |---|---|---|---|
 | `riskkernel.run.id` | string | `9f1c…` | Correlates every span to a governed run. |
+| `riskkernel.run.name` | string | `nightly-report` | The run's name, for grouping spend by run (set when non-empty). |
+| `riskkernel.run.meta.<key>` | string | `riskkernel.run.meta.team` = `payments` | One attribute per user-supplied run metadata tag, so spend can be grouped by team/user/feature in the backend without a separate run→tag map. Cardinality is the user's own. |
 | `riskkernel.step.index` | int | `3` | Loop iteration. |
 | `riskkernel.cost.usd` | double | `0.0042` | Cost charged to the ledger for this call. |
 | `riskkernel.budget.tokens.limit` | int | `200000` | The run's token budget, if set. |

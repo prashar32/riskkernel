@@ -10,6 +10,14 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Spend rollup across runs (`riskkernel audit summary`).** Per-run `audit export`
+  has a cross-run companion: `riskkernel audit summary --by <provider|model|day|name|metadata.<key>>`
+  rolls cost-ledger spend up by a dimension — so spend **by team/user/feature** comes
+  straight from the tags you put on runs (`--by metadata.team`), with `--since`/`--until`
+  windows and `--json` output. Deterministic SQL over the ledger you own; no LLM in the
+  path. The OTel model-call span now also carries `riskkernel.run.name` and one
+  `riskkernel.run.meta.<key>` per run tag, so the same grouping works in Datadog/Grafana/etc.
+  without a separate run→team map.
 - **Importable SigNoz dashboard.** [`examples/otel/signoz`](examples/otel/signoz)
   ships a ready-made SigNoz dashboard (spend per run, budget halts by reason,
   tool-call outcomes, latency and token burn by model) built from the same
