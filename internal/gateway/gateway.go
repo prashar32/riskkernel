@@ -167,7 +167,8 @@ func (g *Gateway) emitCallSpan(run *runs.Run, step int32, providerName string, p
 	}
 	v := run.View()
 	call := otel.Call{
-		RunID: run.ID, StepIndex: step, Provider: providerName, Operation: "chat",
+		RunID: run.ID, RunName: v.Name, Metadata: v.Metadata,
+		StepIndex: step, Provider: providerName, Operation: "chat",
 		RequestModel: preq.Model, ResponseModel: resp.Model,
 		MaxTokens: preq.MaxTokens, Temperature: preq.Temperature,
 		PromptTokens: resp.Usage.PromptTokens, OutputTokens: resp.Usage.CompletionTokens,

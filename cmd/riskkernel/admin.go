@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -156,19 +157,135 @@ func maxFloat(a, b float64) float64 {
 
 // runAudit implements the local audit read-back commands.
 func runAudit(args []string) error {
-	if len(args) < 2 {
-		return fmt.Errorf("usage: riskkernel audit <export|tools|compliance> <run-id>")
+	if len(args) < 1 {
+		return fmt.Errorf("usage: riskkernel audit <export|tools|compliance|summary> ...")
 	}
 	switch args[0] {
 	case "export":
+		if len(args) < 2 {
+			return errAuditRunID("export")
+		}
 		return auditExport(args[1])
 	case "tools":
+		if len(args) < 2 {
+			return errAuditRunID("tools")
+		}
 		return auditTools(args[1])
 	case "compliance":
+		if len(args) < 2 {
+			return errAuditRunID("compliance")
+		}
 		return auditCompliance(args[1])
+	case "summary":
+		return auditSummary(args[1:])
 	default:
-		return fmt.Errorf("unknown audit subcommand %q (want export|tools|compliance)", args[0])
+		return fmt.Errorf("unknown audit subcommand %q (want export|tools|compliance|summary)", args[0])
 	}
+}
+
+func errAuditRunID(sub string) error {
+	return fmt.Errorf("usage: riskkernel audit %s <run-id>", sub)
+}
+
+// auditSummary rolls cost-ledger spend up across runs, grouped by a dimension —
+// provider, model, day, run name, or a run metadata key (metadata.<key>, e.g.
+// metadata.team). This is the cross-run rollup the per-run `audit export` doesn't
+// give: spend by team/user/feature via the tags you put on runs. Deterministic SQL
+// over the ledger the user owns; no LLM in the path.
+func auditSummary(args []string) error {
+	var by, sinceStr, untilStr string
+	asJSON := false
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--by":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--by requires a value (provider|model|day|name|metadata.<key>)")
+			}
+			i++
+			by = args[i]
+		case "--since":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--since requires a value (RFC3339 or YYYY-MM-DD)")
+			}
+			i++
+			sinceStr = args[i]
+		case "--until":
+			if i+1 >= len(args) {
+				return fmt.Errorf("--until requires a value (RFC3339 or YYYY-MM-DD)")
+			}
+			i++
+			untilStr = args[i]
+		case "--json":
+			asJSON = true
+		default:
+			return fmt.Errorf("unknown flag %q for audit summary", args[i])
+		}
+	}
+	if by == "" {
+		return fmt.Errorf("usage: riskkernel audit summary --by <provider|model|day|name|metadata.<key>> [--since T] [--until T] [--json]")
+	}
+
+	opts := storage.SummarizeOptions{By: by}
+	if sinceStr != "" {
+		t, err := parseTimeFlag(sinceStr)
+		if err != nil {
+			return fmt.Errorf("--since: %w", err)
+		}
+		opts.Since = &t
+	}
+	if untilStr != "" {
+		t, err := parseTimeFlag(untilStr)
+		if err != nil {
+			return fmt.Errorf("--until: %w", err)
+		}
+		opts.Until = &t
+	}
+
+	store, err := openStoreForCLI()
+	if err != nil {
+		return err
+	}
+	defer store.Close()
+
+	sum, err := store.SummarizeLedger(context.Background(), opts)
+	if err != nil {
+		return err
+	}
+
+	if asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(sum)
+	}
+
+	tw := tabwriter.NewWriter(os.Stdout, 0, 2, 2, ' ', 0)
+	fmt.Fprintf(tw, "%s\tCALLS\tPROMPT\tCOMPLETION\tDOLLARS\n", summaryHeader(by))
+	for _, g := range sum.Groups {
+		fmt.Fprintf(tw, "%s\t%d\t%d\t%d\t%.6f\n",
+			g.Key, g.Calls, g.PromptTokens, g.CompletionTokens, g.Dollars)
+	}
+	fmt.Fprintf(tw, "TOTAL\t%d\t%d\t%d\t%.6f\n",
+		sum.Total.Calls, sum.Total.PromptTokens, sum.Total.CompletionTokens, sum.Total.Dollars)
+	return tw.Flush()
+}
+
+// summaryHeader is the column label for the grouping dimension (metadata.team → TEAM).
+func summaryHeader(by string) string {
+	if k, ok := strings.CutPrefix(by, "metadata."); ok {
+		return strings.ToUpper(k)
+	}
+	return strings.ToUpper(by)
+}
+
+// parseTimeFlag accepts an RFC3339 timestamp or a plain YYYY-MM-DD date (UTC).
+func parseTimeFlag(s string) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339, s); err == nil {
+		return t, nil
+	}
+	if t, err := time.Parse("2006-01-02", s); err == nil {
+		return t, nil
+	}
+	return time.Time{}, fmt.Errorf("invalid time %q (want RFC3339 or YYYY-MM-DD)", s)
 }
 
 // auditCompliance prints an auditor-ready compliance export for a run: its

@@ -41,8 +41,12 @@ const (
 	attrGenAIResponseID    = "gen_ai.response.id"
 	attrErrorType          = "error.type"
 
-	attrRunID           = "riskkernel.run.id"
-	attrStepIndex       = "riskkernel.step.index"
+	attrRunID     = "riskkernel.run.id"
+	attrRunName   = "riskkernel.run.name"
+	attrStepIndex = "riskkernel.step.index"
+	// attrRunMetaPrefix is prepended to each user-supplied run metadata key so a
+	// backend can group cost by team/user/feature without a separate run→tag map.
+	attrRunMetaPrefix   = "riskkernel.run.meta."
 	attrCostUSD         = "riskkernel.cost.usd"
 	attrBudgetTokLimit  = "riskkernel.budget.tokens.limit"
 	attrBudgetTokRemain = "riskkernel.budget.tokens.remaining"
@@ -146,6 +150,8 @@ func (t *Tracer) Shutdown(ctx context.Context) error {
 // Call is the data for one governed model-call span.
 type Call struct {
 	RunID         string
+	RunName       string            // the run's name, emitted for spend attribution
+	Metadata      map[string]string // user-supplied run tags (team/user/feature/…)
 	StepIndex     int32
 	Provider      string
 	Operation     string // e.g. "chat"
@@ -190,6 +196,14 @@ func (t *Tracer) RecordCall(ctx context.Context, c Call) {
 		attribute.String(attrGenAIRequestModel, c.RequestModel),
 		attribute.String(attrRunID, c.RunID),
 		attribute.Int(attrStepIndex, int(c.StepIndex)),
+	}
+	if c.RunName != "" {
+		attrs = append(attrs, attribute.String(attrRunName, c.RunName))
+	}
+	// Emit each run tag as riskkernel.run.meta.<key> so spend can be grouped by
+	// team/user/feature in the backend. Cardinality is the user's own (their tags).
+	for k, v := range c.Metadata {
+		attrs = append(attrs, attribute.String(attrRunMetaPrefix+k, v))
 	}
 	if c.ResponseModel != "" {
 		attrs = append(attrs, attribute.String(attrGenAIResponseModel, c.ResponseModel))

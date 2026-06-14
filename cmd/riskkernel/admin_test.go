@@ -69,6 +69,104 @@ func TestAuditExportIncludesToolCalls(t *testing.T) {
 	}
 }
 
+func TestAuditSummaryByMetadata(t *testing.T) {
+	dir := seedSummaryStore(t)
+	t.Setenv("RISKKERNEL_DATA_DIR", dir)
+
+	out := captureStdout(t, func() error {
+		return runAudit([]string{"summary", "--by", "metadata.team", "--json"})
+	})
+
+	var sum struct {
+		By     string `json:"by"`
+		Groups []struct {
+			Key              string  `json:"key"`
+			Calls            int64   `json:"calls"`
+			PromptTokens     int64   `json:"promptTokens"`
+			CompletionTokens int64   `json:"completionTokens"`
+			Dollars          float64 `json:"dollars"`
+		} `json:"groups"`
+		Total struct {
+			Calls   int64   `json:"calls"`
+			Dollars float64 `json:"dollars"`
+		} `json:"total"`
+	}
+	if err := json.Unmarshal(out, &sum); err != nil {
+		t.Fatalf("decode: %v (out=%s)", err, out)
+	}
+	if sum.By != "metadata.team" || len(sum.Groups) != 2 {
+		t.Fatalf("summary = %+v", sum)
+	}
+	byTeam := map[string]float64{}
+	for _, g := range sum.Groups {
+		byTeam[g.Key] = g.Dollars
+	}
+	if byTeam["alpha"] != 0.01 || byTeam["beta"] != 0.03 {
+		t.Fatalf("per-team dollars = %v, want alpha=0.01 beta=0.03", byTeam)
+	}
+	if sum.Total.Calls != 2 || sum.Total.Dollars != 0.04 {
+		t.Fatalf("total = %+v, want calls=2 dollars=0.04", sum.Total)
+	}
+}
+
+func TestAuditSummaryRequiresBy(t *testing.T) {
+	if err := runAudit([]string{"summary"}); err == nil {
+		t.Fatal("audit summary with no --by should error")
+	}
+}
+
+func TestParseTimeFlag(t *testing.T) {
+	if _, err := parseTimeFlag("2026-06-15"); err != nil {
+		t.Errorf("date: %v", err)
+	}
+	if _, err := parseTimeFlag("2026-06-15T10:00:00Z"); err != nil {
+		t.Errorf("rfc3339: %v", err)
+	}
+	if _, err := parseTimeFlag("nope"); err == nil {
+		t.Error("invalid time should error")
+	}
+}
+
+func TestSummaryHeader(t *testing.T) {
+	if got := summaryHeader("metadata.team"); got != "TEAM" {
+		t.Errorf("metadata.team header = %q, want TEAM", got)
+	}
+	if got := summaryHeader("provider"); got != "PROVIDER" {
+		t.Errorf("provider header = %q, want PROVIDER", got)
+	}
+}
+
+func seedSummaryStore(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	s, err := storage.OpenSQLite(filepath.Join(dir, "riskkernel.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	ctx := context.Background()
+	now := time.Date(2026, 6, 15, 12, 0, 0, 0, time.UTC)
+
+	for _, r := range []struct {
+		id, team string
+		dollars  float64
+	}{{"run-a", "alpha", 0.01}, {"run-b", "beta", 0.03}} {
+		if err := s.UpsertRun(ctx, storage.RunRecord{
+			ID: r.id, Status: "running", Metadata: map[string]string{"team": r.team},
+			CreatedAt: now, UpdatedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := s.AppendLedger(ctx, storage.LedgerEntry{
+			RunID: r.id, StepIndex: 1, Provider: "anthropic", Model: "claude",
+			PromptTokens: 100, CompletionTokens: 50, Dollars: r.dollars, Priced: true, CreatedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
 func seedAuditStore(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
