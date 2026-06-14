@@ -378,3 +378,48 @@ func TestStreamingProxy_UnsupportedProvider(t *testing.T) {
 		t.Fatalf("status = %d, want 501", w.Code)
 	}
 }
+
+// newAnthropicSSEStreamer is an Anthropic streamer emitting authentic Anthropic
+// SSE events (event: + data: lines), used to exercise the /v1/messages path.
+func newAnthropicSSEStreamer() *fakeStreamer {
+	return &fakeStreamer{
+		fakeProvider: fakeProvider{name: "anthropic"},
+		stream: &fakeStream{
+			chunks: [][]byte{
+				[]byte("event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"claude-sonnet-4-5\",\"usage\":{\"input_tokens\":11,\"output_tokens\":1}}}\n\n"),
+				[]byte("event: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"hi\"}}\n\n"),
+				[]byte("event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"),
+			},
+			usage: provider.Usage{PromptTokens: 11, CompletionTokens: 7},
+			model: "claude-sonnet-4-5",
+		},
+	}
+}
+
+func TestMessagesStreamingProxy_ForwardsAndMeters(t *testing.T) {
+	g := newStreamGateway(t, governor.Budget{Tokens: 1000}, newAnthropicSSEStreamer())
+	r := httptest.NewRequest(http.MethodPost, "/v1/messages",
+		strings.NewReader(`{"model":"claude-sonnet-4-5","messages":[{"role":"user","content":"hi"}],"stream":true}`))
+	r.Header.Set(HeaderRunID, "msg-stream-run")
+	w := httptest.NewRecorder()
+	g.handleMessages(w, r)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, body=%s", w.Code, w.Body.String())
+	}
+	if ct := w.Header().Get("Content-Type"); ct != "text/event-stream" {
+		t.Errorf("content-type = %q", ct)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "message_start") || !strings.Contains(body, "message_stop") {
+		t.Errorf("client did not receive the Anthropic SSE verbatim: %q", body)
+	}
+	// The streamed call is metered against the run from the stream's usage.
+	run, ok := g.runs.Get("msg-stream-run")
+	if !ok {
+		t.Fatal("run not found")
+	}
+	if v := run.View(); v.Usage.Tokens() != 18 || v.Usage.Loops != 1 {
+		t.Fatalf("streamed usage not recorded: %+v", v.Usage)
+	}
+}

@@ -26,6 +26,7 @@ Source = "https://github.com/prashar32/riskkernel"
 
 [project.optional-dependencies]
 langchain = ["langchain-core"]
+crewai = ["crewai>=0.80,<2"]
 dev = ["pytest"]
 
 # This project lives in a subdirectory (sdks/python) of the repo. Hatchling's

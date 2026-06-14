@@ -81,6 +81,12 @@ Lazy-imported, so you only pay for what you use:
 from riskkernel.adapters.langchain import RiskKernelCallbackHandler
 llm.invoke(prompt, config={"callbacks": [RiskKernelCallbackHandler(run)]})
 
+# LlamaIndex — a CallbackHandler that enforces loop/time budgets per LLM call
+from llama_index.core import Settings
+from llama_index.core.callbacks import CallbackManager
+from riskkernel.adapters.llama_index import RiskKernelCallbackHandler
+Settings.callback_manager = CallbackManager([RiskKernelCallbackHandler(run)])
+
 # Claude Agent SDK — PreToolUse approval hook
 from riskkernel.adapters.claude_agent import make_pre_tool_use_hook
 hook = make_pre_tool_use_hook(run, side_effect_for={"Bash": "exec", "Write": "write"})
@@ -88,6 +94,10 @@ hook = make_pre_tool_use_hook(run, side_effect_for={"Bash": "exec", "Write": "wr
 # OpenAI Agents SDK — RunHooks (steps + tool approval)
 from riskkernel.adapters.openai_agents import RiskKernelRunHooks
 hooks = RiskKernelRunHooks(run, gate_tools=True)
+
+# CrewAI — a step_callback (one governed step per agent step; halts the crew at budget)
+from riskkernel.adapters.crewai import RiskKernelStepCallback
+crew = Crew(agents=[...], tasks=[...], step_callback=RiskKernelStepCallback(run))
 ```
 
 ## Configuration
