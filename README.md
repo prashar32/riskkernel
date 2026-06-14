@@ -37,15 +37,17 @@ It is **not** another gateway (LiteLLM/Portkey own routing), **not** another obs
 | 🔁 **Hard loop-iteration cap** | No more infinite agent loops. |
 | ⏱️ **Hard wall-clock budget** | Runs that exceed their time budget halt. |
 | 💾 **Crash-resumable checkpoints** | `kill -9` the daemon mid-run; it reloads with the budget already spent and resumes from the last checkpoint — without re-spending. [Guide](docs/RESUME.md) · [demo](examples/kill-9-resume). |
-| ✋ **Framework-agnostic approval gates** | Side-effecting tool calls pause for human approval — CLI, local web, or webhook. |
-| 🧠 **Memory you own** | Git-native markdown/YAML on your disk; episodic state in your SQLite. |
-| 📡 **OpenTelemetry GenAI** | Emits `gen_ai.*` spans to *your* backend (Grafana/SigNoz/Datadog/Langfuse). |
+| ✋ **Framework-agnostic approval gates** | Side-effecting tool calls pause for human approval — CLI, local web, webhook, or **Slack**. |
+| 📜 **Policy-as-code** | Reusable budget / tool-allowlist / approval bundles via `POST /v1/policies` or a reviewed `riskkernel.yaml`, dry-run against recorded runs ([the policy guide](docs/POLICY.md)). |
+| 📊 **Spend attribution & compliance** | Roll cost up across runs by team/user/feature (`riskkernel audit summary --by metadata.team`), plus a tamper-evident OWASP / EU AI Act evidence export ([compliance](docs/COMPLIANCE.md)). |
+| 🧠 **Memory you own** | Git-native markdown/YAML on your disk; episodic state in your SQLite (or opt-in Postgres for HA — [docs](docs/POSTGRES.md)). |
+| 📡 **OpenTelemetry GenAI (both ways)** | Emits `gen_ai.*` spans to *your* backend (Grafana/SigNoz/Datadog/Langfuse) **and ingests** them, to meter apps it never proxied ([ingress](docs/OTLP_INGRESS.md)). |
 
 ## Three ways to adopt — pick the one that fits
 
-1. **Proxy (zero code).** Set one env var: `OPENAI_BASE_URL=http://localhost:7070/v1`. Every call is intercepted, budgeted, logged, checkpointed, and forwarded to the real provider with your key.
-2. **Python SDK (deep control).** Install the SDK (from source today — see the [Quickstart](#quickstart-60-seconds)), then `@governed_run` / `@governed_tool` / `runtime.budget(...)` / `ApprovalGate`. Adapters for the Claude Agent SDK, OpenAI Agents SDK, and LangChain.
-3. **OpenTelemetry (universal).** RiskKernel is an OTLP endpoint *and* emitter — govern apps already instrumented with OpenLLMetry / the OpenAI Agents SDK, and export to the backend you already run.
+1. **Proxy (zero code).** Set one env var: `OPENAI_BASE_URL=http://localhost:7070/v1` (or `ANTHROPIC_BASE_URL` for `/v1/messages`). Every call — streaming or not — is intercepted, budgeted, logged, checkpointed, and forwarded to the real provider with your key. Native providers: Anthropic, OpenAI, and Ollama (local).
+2. **SDK (deep control).** `pip install riskkernel` (Python) or `npm install @riskkernel/sdk` (TypeScript), then governed runs, per-step loop/time budgets, checkpoints, and approval gates. Framework adapters for the Claude Agent SDK, OpenAI Agents SDK, LangChain, LlamaIndex, CrewAI, AutoGen, and PydanticAI (Python), and the Vercel AI SDK (TypeScript).
+3. **OpenTelemetry (universal).** RiskKernel is an OTLP endpoint *and* emitter — ingest GenAI spans (`POST /v1/traces`) to meter apps already instrumented with OpenLLMetry / the OpenAI Agents SDK / the Vercel AI SDK, and export cost/halt/tool spans to the backend you already run.
 
 ## Quickstart (60 seconds)
 
@@ -87,9 +89,11 @@ curl -s -D- http://localhost:7070/v1/chat/completions \
 Inspect and audit, all on your disk:
 
 ```bash
-riskkernel runs list                 # every governed run
-riskkernel audit export <run-id>     # the cost ledger as JSON
-riskkernel audit tools <run-id>      # governed tool calls as JSON
+riskkernel runs list                      # every governed run
+riskkernel audit export <run-id>          # the cost ledger as JSON
+riskkernel audit tools <run-id>           # governed tool calls as JSON
+riskkernel audit summary --by metadata.team   # spend rolled up across runs
+riskkernel audit compliance <run-id>      # OWASP / EU AI Act evidence export
 ```
 
 Prefer a native binary to Docker? Install the CLI with one command — no clone
@@ -109,14 +113,16 @@ riskkernel completion zsh  > "${fpath[1]}/_riskkernel"                # zsh
 riskkernel completion fish > ~/.config/fish/completions/riskkernel.fish  # fish
 ```
 
-Deeper control (loops, checkpoints, approval gates) is the Python SDK:
+Deeper control (loops, checkpoints, approval gates) is the SDK — Python or
+TypeScript:
 
 ```bash
-pip install riskkernel
+pip install riskkernel          # Python  → sdks/python
+npm install @riskkernel/sdk     # TypeScript → sdks/typescript
 ```
 
-See [`sdks/python`](sdks/python). Trace every run in your own backend:
-[`examples/otel`](examples/otel).
+See [`sdks/python`](sdks/python) and [`sdks/typescript`](sdks/typescript). Trace
+every run in your own backend: [`examples/otel`](examples/otel).
 
 Want to *see* the headline feature? [`examples/codebase-qa`](examples/codebase-qa)
 is a runnable agent that loops over a codebase until the governor kills it on its

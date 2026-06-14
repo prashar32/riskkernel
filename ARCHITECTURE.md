@@ -58,7 +58,7 @@ work around it. Stability of the public surface is governed by
 | `gateway` | Surface 1 — OpenAI/Anthropic-compatible proxy; meters + governs every call. |
 | `mcp` | MCP gateway — intercepts `tools/call` for allowlist + approval + audit. |
 | `memory` | Git-native memory reader (user-owned md/yaml; path-traversal-safe; keyword search). |
-| `otel` | Surface 3 — OpenTelemetry GenAI span export. |
+| `otel` | Surface 3 — OpenTelemetry GenAI span export + an OTLP/HTTP trace ingress (`POST /v1/traces`) that meters consumed spans. |
 | `httpapi` | HTTP server: mounts the proxy, the `/v1` run-control API, the memory + approval endpoints, and the local admin page. |
 | `config` | Config from env + `.env`. Secrets only from here; never stored/logged. |
 | `httpx`, `id`, `version`, `app` | Small shared helpers: JSON responses, UUIDs, build identity, bootstrap wiring. |
@@ -96,5 +96,5 @@ work around it. Stability of the public surface is governed by
 SQLite (WAL) is the default store — one file the user owns. Tables: `runs`,
 `steps`, `tool_calls`, `cost_ledger`, `checkpoints`, `approvals`, `memory_facts`.
 Migrations are embedded and **forward-only** (the daemon refuses to start if the
-on-disk schema is newer than the binary). Postgres is a future opt-in behind the
-same `Store` interface.
+on-disk schema is newer than the binary). Postgres is an opt-in backend behind the
+same `Store` interface (`RISKKERNEL_DATABASE_URL`), for multi-instance / HA.
