@@ -19,6 +19,24 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   recorded after (so the next call is refused if it went over). A provider whose
   backend doesn't implement streaming returns a clear 501 rather than silently
   buffering.
+- **Python SDK: LlamaIndex adapter.** `RiskKernelCallbackHandler` (from
+  `riskkernel.adapters.llama_index`) is a LlamaIndex `BaseCallbackHandler` that ticks
+  one governed step per LLM call (`CBEventType.LLM`), so a run's loop/time budget is
+  enforced over a LlamaIndex query or agent and a halt surfaces as `BudgetExceeded` —
+  the LlamaIndex analog of the LangChain and OpenAI-Agents adapters. Register it on
+  `Settings.callback_manager` and the governance is invisible until the budget bites;
+  LlamaIndex doesn't swallow handler exceptions, so no extra flag is needed. Pass
+  `gate_tools=True` to route `CBEventType.FUNCTION_CALL` through the approval gate.
+  `llama-index-core` is lazily imported, so the SDK stays dependency-free; pinned to
+  the `llama-index-core` >= 0.10 callback protocol.
+- **Streaming proxy.** `POST /v1/chat/completions` now supports `stream:true`: the
+  budget is enforced before the stream opens, the OpenAI provider's SSE is forwarded
+  to the client verbatim (authentic chunks, no translation) while token usage is
+  metered from the final usage chunk, and the run's context — time budget, kill
+  switch, or client disconnect — cuts a live stream. Dollar/token budgets are
+  checked pre-stream and recorded after (so the next call is refused if it went
+  over). A provider without streaming, and the Anthropic `/v1/messages` endpoint,
+  return a clear 501 rather than silently buffering.
 - **Prometheus `/metrics` endpoint.** Scrape the daemon's own state: governed runs
   by status, halted runs by halt reason, total spend in dollars and tokens, priced
   model calls, and the pending-approval queue depth. Plain Prometheus text
