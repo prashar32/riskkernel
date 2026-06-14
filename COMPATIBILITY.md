@@ -20,7 +20,7 @@ every exception here):
 |---|---|
 | **`/v1` REST/gRPC API** | Request/response shapes in `api/v1/`. New optional fields may be added; existing fields keep their meaning. |
 | **Config schema** | Fields explicitly marked `stable` in the schema. Governed by top-level `schemaVersion`. |
-| **SQLite schema** | Forward-migratable only. We never silently change a user's layout. |
+| **Storage schema** | The SQLite and Postgres schemas, forward-migratable only. We never silently change a user's layout. |
 | **CLI flags** | Flags marked stable in `riskkernel --help`. |
 | **Python SDK public methods** | Documented `@governed_run`, `@governed_tool`, `runtime.budget`, `runtime.checkpoint`, `ApprovalGate`. |
 | **OTel attribute names** | The `gen_ai.*` and `riskkernel.*` attribute set pinned in `api/v1/otel-genai.md`. |
@@ -55,7 +55,12 @@ every exception here):
 ## Storage backend
 
 - SQLite (WAL) is the default; Postgres is opt-in behind the same `Store`
-  interface. We never silently change a user's storage layout.
+  interface, selected by setting `RISKKERNEL_DATABASE_URL`. We never silently
+  change a user's storage layout, and never silently switch backends.
+- Both schemas are forward-migratable only (the same downgrade protection applies:
+  the binary refuses to start if the on-disk schema is newer than it understands).
+  The two backends are held at behavioral parity by a shared `Store` conformance
+  test suite.
 
 ## Deprecation policy
 

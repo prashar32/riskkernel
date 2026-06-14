@@ -10,6 +10,15 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Postgres storage backend (opt-in).** For multi-instance / HA deployments,
+  RiskKernel can run its state on Postgres instead of the default SQLite file — set
+  `RISKKERNEL_DATABASE_URL` to a connection string and the daemon uses Postgres for
+  runs, steps, the cost ledger, tool-call audit trail, approvals, policy bundles,
+  memory facts, and crash-resumable checkpoints. It sits behind the same `Store`
+  interface and the same schema as SQLite (forward-only migrations, downgrade
+  protection), and a shared conformance suite holds the two backends at behavioral
+  parity. SQLite stays the zero-config default; nothing changes unless you set the
+  URL. See [`docs/POSTGRES.md`](docs/POSTGRES.md).
 - **AutoGen adapter (Python SDK).** `from riskkernel.adapters.autogen import
   GovernedChatCompletionClient` — wrap your AutoGen model client once and hand it to
   your existing `AssistantAgent` (or team) to bind it to a governed run with no other
