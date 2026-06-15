@@ -7,7 +7,9 @@ instrumentation, no metrics pipeline: SigNoz aggregates the spans, and you impor
 one JSON file.
 
 > Already on Grafana + Tempo? [`../grafana/`](../grafana/) ships the same panels as
-> a provisioned stack. This is the SigNoz equivalent for teams who already run it.
+> a provisioned stack. On [Datadog](https://www.datadoghq.com)?
+> [`../datadog/`](../datadog/) is the Datadog import. This is the SigNoz equivalent
+> for teams who already run it.
 
 ## Point RiskKernel at SigNoz
 

@@ -9,7 +9,8 @@ TraceQL metrics, and the dashboard is provisioned so it shows up on first load.
 > The [Jaeger quick-look](../docker-compose.yaml) one directory up is for reading
 > individual traces. This is the aggregate view — the panels a platform team watches.
 > On [SigNoz](https://signoz.io) instead? [`../signoz/`](../signoz/) is the same
-> dashboard, importable there.
+> dashboard, importable there; on [Datadog](https://www.datadoghq.com)?
+> [`../datadog/`](../datadog/) ships it as a Datadog dashboard JSON.
 
 ![panels: total spend, output tokens, model calls, tool calls refused, spend over
 time, spend by run, p95 latency by model, model-call rate, tool calls by outcome,

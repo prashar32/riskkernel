@@ -10,6 +10,16 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Importable Datadog dashboard.** [`examples/otel/datadog`](examples/otel/datadog)
+  ships a ready-made Datadog dashboard (spend per run, budget halts by reason,
+  tool-call outcomes, latency and token burn by model) built from the same
+  OpenTelemetry GenAI spans RiskKernel already exports — completing the dashboard
+  set alongside the Grafana + Tempo and SigNoz examples. Panels query the spans
+  Datadog ingests over OTLP, referencing attributes by their `@`-prefixed names
+  (e.g. `@riskkernel.cost.usd`) exactly as pinned in
+  [`api/v1/otel-genai.md`](api/v1/otel-genai.md); a short README covers pointing the
+  OTLP exporter at the Datadog Agent (the Datadog key lives on the Agent, not
+  RiskKernel) and the optional span-based-metric path for long-term cost rollups.
 - **Guide: front the long tail of providers with LiteLLM upstream.**
   [`docs/PROVIDERS.md`](docs/PROVIDERS.md) documents calling the 100+ providers
   RiskKernel doesn't implement natively (Gemini, Cohere, Mistral, Bedrock, …) by
