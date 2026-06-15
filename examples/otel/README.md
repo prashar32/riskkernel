@@ -77,7 +77,8 @@ Header values carry secrets and are never logged. The traces-specific
 
 **Want it ready-made?** [`grafana/`](grafana/) ships a provisioned Grafana + Tempo
 stack with a RiskKernel dashboard (spend, halts, tool outcomes, latency) — one
-`docker compose up`, no import step.
+`docker compose up`, no import step. The same dashboard is importable on
+[`signoz/`](signoz/) and [`datadog/`](datadog/) for teams already on those backends.
 
 Because cost and budget live on every span as first-class attributes, you can also build
 panels directly from spans (e.g. in Grafana over Tempo, or SigNoz):

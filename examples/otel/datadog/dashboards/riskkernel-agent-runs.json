@@ -1,0 +1,566 @@
+{
+  "title": "RiskKernel — agent runs",
+  "description": "Spend, token burn, budget halts, tool-call outcomes, and latency by model for your governed agent runs, built from the OpenTelemetry GenAI spans RiskKernel exports. Queries the indexed spans Datadog ingests over OTLP; span attributes are referenced with the @ prefix (e.g. @riskkernel.cost.usd). See api/v1/otel-genai.md for the pinned attribute set, and the README for the optional span-based-metric path for long-term cost aggregation.",
+  "layout_type": "ordered",
+  "reflow_type": "fixed",
+  "tags": [
+    "riskkernel",
+    "agents",
+    "genai",
+    "llm"
+  ],
+  "template_variables": [
+    {
+      "name": "service",
+      "prefix": "service",
+      "available_values": [],
+      "default": "riskkernel"
+    }
+  ],
+  "widgets": [
+    {
+      "definition": {
+        "title": "Total spend",
+        "title_size": "16",
+        "title_align": "left",
+        "type": "query_value",
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "spans",
+                "search": {
+                  "query": "service:$service.value @riskkernel.cost.usd:*"
+                },
+                "compute": {
+                  "aggregation": "sum",
+                  "metric": "@riskkernel.cost.usd"
+                },
+                "group_by": []
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "query1",
+                "number_format": {
+                  "unit": {
+                    "type": "canonical_unit",
+                    "unit_name": "dollar"
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "autoscale": true,
+        "precision": 4
+      },
+      "layout": {
+        "x": 0,
+        "y": 0,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "Output tokens",
+        "title_size": "16",
+        "title_align": "left",
+        "type": "query_value",
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "spans",
+                "search": {
+                  "query": "service:$service.value @gen_ai.usage.output_tokens:*"
+                },
+                "compute": {
+                  "aggregation": "sum",
+                  "metric": "@gen_ai.usage.output_tokens"
+                },
+                "group_by": []
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ]
+          }
+        ],
+        "autoscale": true,
+        "precision": 0
+      },
+      "layout": {
+        "x": 3,
+        "y": 0,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "Model calls",
+        "title_size": "16",
+        "title_align": "left",
+        "type": "query_value",
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "spans",
+                "search": {
+                  "query": "service:$service.value @gen_ai.operation.name:chat"
+                },
+                "compute": {
+                  "aggregation": "count"
+                },
+                "group_by": []
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ]
+          }
+        ],
+        "autoscale": true,
+        "precision": 0
+      },
+      "layout": {
+        "x": 6,
+        "y": 0,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "Tool calls refused",
+        "title_size": "16",
+        "title_align": "left",
+        "type": "query_value",
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "spans",
+                "search": {
+                  "query": "service:$service.value @gen_ai.operation.name:execute_tool -@riskkernel.tool.status:approved"
+                },
+                "compute": {
+                  "aggregation": "count"
+                },
+                "group_by": []
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ]
+          }
+        ],
+        "autoscale": true,
+        "precision": 0
+      },
+      "layout": {
+        "x": 9,
+        "y": 0,
+        "width": 3,
+        "height": 2
+      }
+    },
+    {
+      "definition": {
+        "title": "Spend over time (USD)",
+        "title_size": "16",
+        "title_align": "left",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "spans",
+                "search": {
+                  "query": "service:$service.value @riskkernel.cost.usd:*"
+                },
+                "compute": {
+                  "aggregation": "sum",
+                  "metric": "@riskkernel.cost.usd"
+                },
+                "group_by": []
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            },
+            "display_type": "bars"
+          }
+        ]
+      },
+      "layout": {
+        "x": 0,
+        "y": 2,
+        "width": 6,
+        "height": 3
+      }
+    },
+    {
+      "definition": {
+        "title": "Spend by run (USD)",
+        "title_size": "16",
+        "title_align": "left",
+        "type": "toplist",
+        "requests": [
+          {
+            "response_format": "scalar",
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "spans",
+                "search": {
+                  "query": "service:$service.value @riskkernel.cost.usd:*"
+                },
+                "compute": {
+                  "aggregation": "sum",
+                  "metric": "@riskkernel.cost.usd"
+                },
+                "group_by": [
+                  {
+                    "facet": "@riskkernel.run.id",
+                    "limit": 20,
+                    "sort": {
+                      "aggregation": "sum",
+                      "metric": "@riskkernel.cost.usd",
+                      "order": "desc"
+                    }
+                  }
+                ]
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "query1",
+                "number_format": {
+                  "unit": {
+                    "type": "canonical_unit",
+                    "unit_name": "dollar"
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "layout": {
+        "x": 6,
+        "y": 2,
+        "width": 6,
+        "height": 3
+      }
+    },
+    {
+      "definition": {
+        "title": "p95 latency by model",
+        "title_size": "16",
+        "title_align": "left",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "spans",
+                "search": {
+                  "query": "service:$service.value @gen_ai.operation.name:chat"
+                },
+                "compute": {
+                  "aggregation": "pc95",
+                  "metric": "@duration"
+                },
+                "group_by": [
+                  {
+                    "facet": "@gen_ai.request.model",
+                    "limit": 10,
+                    "sort": {
+                      "aggregation": "pc95",
+                      "metric": "@duration",
+                      "order": "desc"
+                    }
+                  }
+                ]
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "query1",
+                "number_format": {
+                  "unit": {
+                    "type": "canonical_unit",
+                    "unit_name": "nanosecond"
+                  }
+                }
+              }
+            ],
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            },
+            "display_type": "line"
+          }
+        ]
+      },
+      "layout": {
+        "x": 0,
+        "y": 5,
+        "width": 6,
+        "height": 3
+      }
+    },
+    {
+      "definition": {
+        "title": "Model-call rate by model",
+        "title_size": "16",
+        "title_align": "left",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "spans",
+                "search": {
+                  "query": "service:$service.value @gen_ai.operation.name:chat"
+                },
+                "compute": {
+                  "aggregation": "count"
+                },
+                "group_by": [
+                  {
+                    "facet": "@gen_ai.request.model",
+                    "limit": 10,
+                    "sort": {
+                      "aggregation": "count",
+                      "order": "desc"
+                    }
+                  }
+                ]
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            },
+            "display_type": "line"
+          }
+        ]
+      },
+      "layout": {
+        "x": 6,
+        "y": 5,
+        "width": 6,
+        "height": 3
+      }
+    },
+    {
+      "definition": {
+        "title": "Output tokens by model",
+        "title_size": "16",
+        "title_align": "left",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "spans",
+                "search": {
+                  "query": "service:$service.value @gen_ai.operation.name:chat @gen_ai.usage.output_tokens:*"
+                },
+                "compute": {
+                  "aggregation": "sum",
+                  "metric": "@gen_ai.usage.output_tokens"
+                },
+                "group_by": [
+                  {
+                    "facet": "@gen_ai.request.model",
+                    "limit": 10,
+                    "sort": {
+                      "aggregation": "sum",
+                      "metric": "@gen_ai.usage.output_tokens",
+                      "order": "desc"
+                    }
+                  }
+                ]
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            },
+            "display_type": "bars"
+          }
+        ]
+      },
+      "layout": {
+        "x": 0,
+        "y": 8,
+        "width": 6,
+        "height": 3
+      }
+    },
+    {
+      "definition": {
+        "title": "Tool calls by outcome",
+        "title_size": "16",
+        "title_align": "left",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "spans",
+                "search": {
+                  "query": "service:$service.value @gen_ai.operation.name:execute_tool"
+                },
+                "compute": {
+                  "aggregation": "count"
+                },
+                "group_by": [
+                  {
+                    "facet": "@riskkernel.tool.status",
+                    "limit": 10,
+                    "sort": {
+                      "aggregation": "count",
+                      "order": "desc"
+                    }
+                  }
+                ]
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "style": {
+              "palette": "dog_classic",
+              "line_type": "solid",
+              "line_width": "normal"
+            },
+            "display_type": "bars"
+          }
+        ]
+      },
+      "layout": {
+        "x": 6,
+        "y": 8,
+        "width": 6,
+        "height": 3
+      }
+    },
+    {
+      "definition": {
+        "title": "Budget halts by reason",
+        "title_size": "16",
+        "title_align": "left",
+        "show_legend": true,
+        "legend_layout": "auto",
+        "type": "timeseries",
+        "requests": [
+          {
+            "response_format": "timeseries",
+            "queries": [
+              {
+                "name": "query1",
+                "data_source": "spans",
+                "search": {
+                  "query": "service:$service.value @riskkernel.halt.reason:*"
+                },
+                "compute": {
+                  "aggregation": "count"
+                },
+                "group_by": [
+                  {
+                    "facet": "@riskkernel.halt.reason",
+                    "limit": 10,
+                    "sort": {
+                      "aggregation": "count",
+                      "order": "desc"
+                    }
+                  }
+                ]
+              }
+            ],
+            "formulas": [
+              {
+                "formula": "query1"
+              }
+            ],
+            "style": {
+              "palette": "warm",
+              "line_type": "solid",
+              "line_width": "normal"
+            },
+            "display_type": "bars"
+          }
+        ]
+      },
+      "layout": {
+        "x": 0,
+        "y": 11,
+        "width": 12,
+        "height": 3
+      }
+    }
+  ]
+}
