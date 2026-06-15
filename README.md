@@ -45,7 +45,7 @@ It is **not** another gateway (LiteLLM/Portkey own routing), **not** another obs
 
 ## Three ways to adopt — pick the one that fits
 
-1. **Proxy (zero code).** Set one env var: `OPENAI_BASE_URL=http://localhost:7070/v1` (or `ANTHROPIC_BASE_URL` for `/v1/messages`). Every call — streaming or not — is intercepted, budgeted, logged, checkpointed, and forwarded to the real provider with your key. Native providers: Anthropic, OpenAI, and Ollama (local).
+1. **Proxy (zero code).** Set one env var: `OPENAI_BASE_URL=http://localhost:7070/v1` (or `ANTHROPIC_BASE_URL` for `/v1/messages`). Every call — streaming or not — is intercepted, budgeted, logged, checkpointed, and forwarded to the real provider with your key. Native providers: Anthropic, OpenAI, and Ollama (local); front the long tail (Gemini, Cohere, Mistral, Bedrock, …) with [LiteLLM upstream](docs/PROVIDERS.md).
 2. **SDK (deep control).** `pip install riskkernel` (Python) or `npm install @riskkernel/sdk` (TypeScript), then governed runs, per-step loop/time budgets, checkpoints, and approval gates. Framework adapters for the Claude Agent SDK, OpenAI Agents SDK, LangChain, LlamaIndex, CrewAI, AutoGen, and PydanticAI (Python), and the Vercel AI SDK (TypeScript).
 3. **OpenTelemetry (universal).** RiskKernel is an OTLP endpoint *and* emitter — ingest GenAI spans (`POST /v1/traces`) to meter apps already instrumented with OpenLLMetry / the OpenAI Agents SDK / the Vercel AI SDK, and export cost/halt/tool spans to the backend you already run.
 

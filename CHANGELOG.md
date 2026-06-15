@@ -10,6 +10,17 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Guide: front the long tail of providers with LiteLLM upstream.**
+  [`docs/PROVIDERS.md`](docs/PROVIDERS.md) documents calling the 100+ providers
+  RiskKernel doesn't implement natively (Gemini, Cohere, Mistral, Bedrock, …) by
+  putting a LiteLLM OpenAI-compatible proxy *upstream* of RiskKernel via the existing
+  `RISKKERNEL_OPENAI_BASE_URL` override — RiskKernel governs every call (budgets,
+  approvals, audit, checkpoints, cost metering, OTel) and LiteLLM does the routing,
+  with the real provider keys living in LiteLLM. Copy-pasteable docker-compose + a
+  minimal LiteLLM `config.yaml`, and honest notes on the model-name routing rule
+  (`RISKKERNEL_DEFAULT_PROVIDER=openai` for unmatched names) and the cost caveat
+  (long-tail models need a `RISKKERNEL_PRICING_FILE` rate to count toward the dollar
+  budget).
 - **Spend rollup across runs (`riskkernel audit summary`).** Per-run `audit export`
   has a cross-run companion: `riskkernel audit summary --by <provider|model|day|name|metadata.<key>>`
   rolls cost-ledger spend up by a dimension — so spend **by team/user/feature** comes
