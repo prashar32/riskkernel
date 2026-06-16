@@ -1,11 +1,11 @@
 # Providers — native, and the long tail via LiteLLM
 
-RiskKernel implements the top providers **natively** in Go: Anthropic, OpenAI, and
-Ollama (local). For those, point your app at the proxy and you're done — no extra
-moving parts.
+RiskKernel implements the top providers **natively** in Go: Anthropic, OpenAI,
+Ollama (local), and AWS Bedrock. For those, point your app at the proxy and you're
+done — no extra moving parts. (Bedrock setup is in its own section, [below](#aws-bedrock-native).)
 
 The other 100+ providers (Google Gemini, Cohere, Mistral, Groq, Together, Azure
-OpenAI, AWS Bedrock, OpenRouter, …) are not reimplemented inside RiskKernel — that
+OpenAI, OpenRouter, …) are not reimplemented inside RiskKernel — that
 isn't the product. Instead you front them with **[LiteLLM](https://github.com/BerriAI/litellm)**,
 which already speaks all of them through one OpenAI-compatible endpoint, and put
 RiskKernel **in front of LiteLLM**. RiskKernel governs every call; LiteLLM does the
@@ -29,7 +29,8 @@ upstream. LiteLLM is just the real-world version of that upstream.
 | Anthropic (`claude-*`) | Native. Set `ANTHROPIC_API_KEY` on the daemon; use a `claude-*` model. |
 | OpenAI (`gpt-*`, `o1`, `o3`) | Native. Set `OPENAI_API_KEY` on the daemon; use a `gpt-*`/`o1`/`o3` model. |
 | A local Ollama model | Native. Set `RISKKERNEL_OLLAMA_BASE_URL`; use a model the routing sends to Ollama. |
-| Anything else (Gemini, Cohere, Mistral, Groq, Bedrock, …) | Front it with **LiteLLM** as described below. |
+| AWS Bedrock | Native. Set AWS credentials + `RISKKERNEL_DEFAULT_PROVIDER=bedrock`; see [below](#aws-bedrock-native). |
+| Anything else (Gemini, Cohere, Mistral, Groq, …) | Front it with **LiteLLM** as described below. |
 
 You only need LiteLLM for the long tail. If your stack is purely Anthropic/OpenAI/
 Ollama, skip this page.
@@ -203,3 +204,40 @@ section of [`docs/BUDGETS.md`](BUDGETS.md) for the full format and stability pro
   Anthropic/OpenAI/Ollama stacks, native providers need no LiteLLM at all.
 - **Streaming** works end-to-end (LiteLLM is OpenAI-compatible SSE), and the call is
   metered from the stream's final usage chunk — same as a native streamed call.
+
+## AWS Bedrock (native)
+
+Bedrock is implemented natively against the Bedrock Runtime **Converse** API, signed
+with hand-rolled AWS SigV4 — **no AWS SDK dependency**. BYO AWS credentials, read
+from the standard AWS environment variables and never stored.
+
+```bash
+export AWS_ACCESS_KEY_ID=AKIA...
+export AWS_SECRET_ACCESS_KEY=...
+export AWS_SESSION_TOKEN=...            # optional, for STS temporary credentials
+export AWS_REGION=us-east-1             # or AWS_DEFAULT_REGION
+export RISKKERNEL_DEFAULT_PROVIDER=bedrock
+riskkernel serve
+```
+
+Then call with a **Bedrock model id** (a foundation-model id or an inference-profile
+id), e.g. `anthropic.claude-3-5-sonnet-20240620-v1:0` or
+`us.anthropic.claude-3-5-sonnet-20241022-v2:0`.
+
+**Routing.** RiskKernel routes by model-name prefix: `claude-*` → native Anthropic,
+`gpt-*`/`o1`/`o3` → native OpenAI, everything else → the **default provider**. A
+Bedrock model id starts with a vendor namespace (`anthropic.`, `amazon.`, `meta.`,
+`us.`, …), so it doesn't match those prefixes and falls to the default — which is why
+you set `RISKKERNEL_DEFAULT_PROVIDER=bedrock`. (Bare `claude-*`/`gpt-*` names still
+route to the native Anthropic/OpenAI providers if those are also configured.)
+
+Bedrock is registered only when `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` are
+set; with `RISKKERNEL_DEFAULT_PROVIDER=bedrock` and no credentials, the daemon
+refuses to start with a clear error. For a VPC/PrivateLink endpoint, override the
+runtime URL with `RISKKERNEL_BEDROCK_BASE_URL`.
+
+**Cost caveat (same as the long tail).** The built-in pricing table only knows
+`claude-*` / `gpt-*` names, so a Bedrock model id meters `priced: false` (cost `$0`)
+until you add a rate for it via `RISKKERNEL_PRICING_FILE` — its tokens still count
+toward the **token** budget, just not the **dollar** budget. Cost is metered from
+Bedrock's own returned token usage; RiskKernel only needs the per-token rate.

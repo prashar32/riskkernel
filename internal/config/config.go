@@ -63,6 +63,19 @@ type Config struct {
 	// OllamaBaseURL points the native Ollama provider at a server. Empty uses the
 	// local default (http://localhost:11434). Read from RISKKERNEL_OLLAMA_BASE_URL.
 	OllamaBaseURL string
+	// BedrockBaseURL overrides the Bedrock runtime endpoint (a VPC/PrivateLink
+	// endpoint, or a mock). Empty uses the regional default. Read from
+	// RISKKERNEL_BEDROCK_BASE_URL.
+	BedrockBaseURL string
+
+	// AWS credentials + region for the native Bedrock provider, read from the
+	// standard AWS env vars so existing setups need no new config. Bedrock is
+	// registered only when an access key and secret are present. Never stored or
+	// logged. AWSSessionToken is optional (STS temporary credentials).
+	AWSAccessKeyID     string // AWS_ACCESS_KEY_ID
+	AWSSecretAccessKey string // AWS_SECRET_ACCESS_KEY
+	AWSSessionToken    string // AWS_SESSION_TOKEN
+	AWSRegion          string // AWS_REGION, then AWS_DEFAULT_REGION
 
 	// DefaultBudget is applied to runs created without an explicit budget — e.g.
 	// proxy calls that supply only a run-id. Any zero field is unlimited. When no
@@ -216,20 +229,25 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Port:             port,
-		DataDir:          getenvDefault("RISKKERNEL_DATA_DIR", "./data"),
-		DatabaseURL:      os.Getenv("RISKKERNEL_DATABASE_URL"),
-		APIToken:         os.Getenv("RISKKERNEL_API_TOKEN"),
-		DefaultProvider:  getenvDefault("RISKKERNEL_DEFAULT_PROVIDER", "anthropic"),
-		AnthropicAPIKey:  os.Getenv("ANTHROPIC_API_KEY"),
-		OpenAIAPIKey:     os.Getenv("OPENAI_API_KEY"),
-		AnthropicBaseURL: os.Getenv("RISKKERNEL_ANTHROPIC_BASE_URL"),
-		OpenAIBaseURL:    os.Getenv("RISKKERNEL_OPENAI_BASE_URL"),
-		OllamaBaseURL:    os.Getenv("RISKKERNEL_OLLAMA_BASE_URL"),
-		DefaultBudget:    budget,
-		PricingFile:      os.Getenv("RISKKERNEL_PRICING_FILE"),
-		PolicyFile:       os.Getenv("RISKKERNEL_POLICY_FILE"),
-		OTel:             loadOTel(),
+		Port:               port,
+		DataDir:            getenvDefault("RISKKERNEL_DATA_DIR", "./data"),
+		DatabaseURL:        os.Getenv("RISKKERNEL_DATABASE_URL"),
+		APIToken:           os.Getenv("RISKKERNEL_API_TOKEN"),
+		DefaultProvider:    getenvDefault("RISKKERNEL_DEFAULT_PROVIDER", "anthropic"),
+		AnthropicAPIKey:    os.Getenv("ANTHROPIC_API_KEY"),
+		OpenAIAPIKey:       os.Getenv("OPENAI_API_KEY"),
+		AnthropicBaseURL:   os.Getenv("RISKKERNEL_ANTHROPIC_BASE_URL"),
+		OpenAIBaseURL:      os.Getenv("RISKKERNEL_OPENAI_BASE_URL"),
+		OllamaBaseURL:      os.Getenv("RISKKERNEL_OLLAMA_BASE_URL"),
+		BedrockBaseURL:     os.Getenv("RISKKERNEL_BEDROCK_BASE_URL"),
+		AWSAccessKeyID:     os.Getenv("AWS_ACCESS_KEY_ID"),
+		AWSSecretAccessKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
+		AWSSessionToken:    os.Getenv("AWS_SESSION_TOKEN"),
+		AWSRegion:          getenvDefault("AWS_REGION", os.Getenv("AWS_DEFAULT_REGION")),
+		DefaultBudget:      budget,
+		PricingFile:        os.Getenv("RISKKERNEL_PRICING_FILE"),
+		PolicyFile:         os.Getenv("RISKKERNEL_POLICY_FILE"),
+		OTel:               loadOTel(),
 		Approval: ApprovalConfig{
 			DefaultSafe:        envBoolDefault("RISKKERNEL_APPROVAL_DEFAULT_SAFE", true),
 			WebhookURL:         os.Getenv("RISKKERNEL_APPROVAL_WEBHOOK"),

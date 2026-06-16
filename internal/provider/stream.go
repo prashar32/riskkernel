@@ -4,8 +4,8 @@ import "context"
 
 // Streamer is the optional interface a provider implements to support streaming
 // chat. The gateway type-asserts for it; a provider that doesn't implement it
-// (Anthropic, Ollama, the stubs, for now) makes a streaming request fall back to a
-// clear "unsupported" error rather than silently buffering.
+// (Ollama and Bedrock, for now) makes a streaming request fall back to a clear
+// "unsupported" error rather than silently buffering.
 type Streamer interface {
 	// ChatStream starts a streaming completion. The returned ChatStream yields the
 	// provider's raw SSE chunks verbatim (so the client receives authentic,
