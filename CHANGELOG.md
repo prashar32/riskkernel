@@ -10,6 +10,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Homebrew formula publishing.** A release workflow + formula generator publish the
+  `riskkernel` formula to a Homebrew tap on each version tag, so `brew install
+  riskkernel` installs a prebuilt binary and stays current with releases — the same
+  per-artifact publish pattern as the Python and TypeScript SDKs. It's inert until the
+  tap repo (`homebrew-riskkernel`) and a `HOMEBREW_TAP_TOKEN` secret are configured
+  (one-time maintainer step) and never blocks a release without them. See
+  [`docs/HOMEBREW.md`](docs/HOMEBREW.md).
 - **Native AWS Bedrock provider.** Run Bedrock-hosted models through RiskKernel with
   full budgets / approvals / audit / OTel — set the standard AWS env vars
   (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional `AWS_SESSION_TOKEN`,
