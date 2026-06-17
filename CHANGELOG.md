@@ -10,6 +10,17 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 ## [Unreleased]
 
 ### Added
+- **Native AWS Bedrock provider.** Run Bedrock-hosted models through RiskKernel with
+  full budgets / approvals / audit / OTel — set the standard AWS env vars
+  (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, optional `AWS_SESSION_TOKEN`,
+  `AWS_REGION`) and `RISKKERNEL_DEFAULT_PROVIDER=bedrock`, then call with a Bedrock
+  model id (e.g. `anthropic.claude-3-5-sonnet-20240620-v1:0`). Implemented against
+  the Bedrock Runtime **Converse** API and signed with hand-rolled AWS SigV4 — **no
+  AWS SDK dependency** (the signer is verified against AWS's published SigV4
+  known-answer test vector). Registered only when AWS credentials are present;
+  `RISKKERNEL_BEDROCK_BASE_URL` overrides the endpoint for a VPC/PrivateLink setup.
+  Long-tail Bedrock model ids meter `priced:false` until a `RISKKERNEL_PRICING_FILE`
+  rate is added (token budget yes, dollar budget no). See [`docs/PROVIDERS.md`](docs/PROVIDERS.md#aws-bedrock-native).
 - **Importable Datadog dashboard.** [`examples/otel/datadog`](examples/otel/datadog)
   ships a ready-made Datadog dashboard (spend per run, budget halts by reason,
   tool-call outcomes, latency and token burn by model) built from the same

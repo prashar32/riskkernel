@@ -18,7 +18,8 @@ The core runtime is built and released:
   ([`docs/RESUME.md`](docs/RESUME.md)).
 - **OpenAI- and Anthropic-compatible proxy** — point one env var at RiskKernel and
   every call (streaming or not) is metered, priced, and budget-enforced (BYO key).
-  Native providers: Anthropic, OpenAI, and Ollama (local, key-free).
+  Native providers: Anthropic, OpenAI, Ollama (local, key-free), and AWS Bedrock; the
+  long tail is fronted via LiteLLM upstream ([`docs/PROVIDERS.md`](docs/PROVIDERS.md)).
 - **Human-in-the-loop approval** — gate side-effecting tools; resolve from the CLI,
   a local web page, a webhook, or **Slack** ([`docs/APPROVALS_SLACK.md`](docs/APPROVALS_SLACK.md)).
 - **Policy-as-code, enforced per-run** — named policy bundles via `POST /v1/policies`
@@ -26,7 +27,8 @@ The core runtime is built and released:
   under a bundle is governed by its tool allowlist and approval rules, not just its
   budget ([`docs/POLICY.md`](docs/POLICY.md)).
 - **OpenTelemetry GenAI — export and ingress** — emit cost/halt/tool spans into your
-  existing backend (ready-made **Grafana + Tempo** and **SigNoz** dashboards), *and*
+  existing backend (ready-made **Grafana + Tempo**, **SigNoz**, and **Datadog**
+  dashboards), *and*
   ingest GenAI spans (`POST /v1/traces`) to meter apps RiskKernel never proxied
   ([`docs/OTLP_INGRESS.md`](docs/OTLP_INGRESS.md)).
 - **Spend attribution** — roll cost up across runs by team/user/feature
@@ -51,10 +53,6 @@ The core runtime is built and released:
 
 Where the work is heading near-term:
 
-- **More native providers** — AWS Bedrock ([#24](https://github.com/prashar32/riskkernel/issues/24));
-  the long tail via LiteLLM-as-upstream.
-- **More backend dashboards** — a Datadog dashboard to join the Grafana and SigNoz
-  examples.
 - **Easier install** — a Homebrew tap for `brew install riskkernel`
   ([#97](https://github.com/prashar32/riskkernel/issues/97)).
 

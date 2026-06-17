@@ -3,18 +3,14 @@
 // outbound network calls. Each Chat call returns token Usage so the deterministic
 // governor and cost ledger can attribute spend to a run.
 //
-// v0.1 implements Anthropic natively; OpenAI, Bedrock, and Ollama are stubs that
-// return ErrNotImplemented. The interface is intentionally provider-neutral so
-// the gateway and governor never special-case a vendor.
+// Anthropic, OpenAI, Ollama, and AWS Bedrock are implemented natively. The
+// interface is intentionally provider-neutral so the gateway and governor never
+// special-case a vendor; the long tail is fronted via LiteLLM (see docs).
 package provider
 
 import (
 	"context"
-	"errors"
 )
-
-// ErrNotImplemented is returned by stub providers that are not yet wired up.
-var ErrNotImplemented = errors.New("provider: not implemented in v0.1")
 
 // Role identifies the author of a message.
 type Role string
