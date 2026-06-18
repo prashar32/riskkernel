@@ -19,20 +19,36 @@ type Rate struct {
 	OutputPerM float64 `json:"outputPerM"`
 }
 
-// defaultRates holds built-in list prices. Matching is by case-insensitive prefix
-// so dated model snapshots (e.g. "claude-sonnet-4-5-20250101") resolve to the
-// family rate. Users override or extend these via config; unknown models price to
-// zero and report ok=false so the caller can decide how to treat them.
+// defaultRates holds built-in list prices in USD per 1M tokens, as published on the
+// providers' pricing pages. Refreshed 2026-06-19 from:
+//
+//	Anthropic: https://platform.claude.com/docs/en/about-claude/pricing
+//	OpenAI:    https://developers.openai.com/api/docs/pricing
+//
+// Matching is case-insensitive LONGEST-prefix, so dated snapshots (e.g.
+// "claude-opus-4-8-20260101") and minor versions resolve to the right rate, and a
+// more specific key wins over a shorter one. Provider prices drift — override or
+// extend via config (RISKKERNEL_PRICING_FILE); unknown models price to zero and
+// report ok=false so the caller can decide how to treat them.
 var defaultRates = map[string]Rate{
-	// Anthropic (native provider in v0.1).
-	"claude-opus-4":    {InputPerM: 15.0, OutputPerM: 75.0},
-	"claude-sonnet-4":  {InputPerM: 3.0, OutputPerM: 15.0},
-	"claude-haiku-4":   {InputPerM: 1.0, OutputPerM: 5.0},
+	// Anthropic (native). Opus 4.5+ dropped to $5/$25; Opus 4 / 4.1 stay $15/$75,
+	// so the newer versions get explicit (longer-prefix) entries.
+	"claude-fable-5":   {InputPerM: 10.0, OutputPerM: 50.0},
+	"claude-opus-4-8":  {InputPerM: 5.0, OutputPerM: 25.0},
+	"claude-opus-4-7":  {InputPerM: 5.0, OutputPerM: 25.0},
+	"claude-opus-4-6":  {InputPerM: 5.0, OutputPerM: 25.0},
+	"claude-opus-4-5":  {InputPerM: 5.0, OutputPerM: 25.0},
+	"claude-opus-4":    {InputPerM: 15.0, OutputPerM: 75.0}, // Opus 4 / 4.1
+	"claude-sonnet-4":  {InputPerM: 3.0, OutputPerM: 15.0},  // Sonnet 4 / 4.5 / 4.6
+	"claude-haiku-4":   {InputPerM: 1.0, OutputPerM: 5.0},   // Haiku 4.5
 	"claude-3-5-haiku": {InputPerM: 0.8, OutputPerM: 4.0},
-	// OpenAI (stub provider; prices kept for ledger/ingress accounting).
-	"gpt-5":       {InputPerM: 1.25, OutputPerM: 10.0},
-	"gpt-4o":      {InputPerM: 2.5, OutputPerM: 10.0},
-	"gpt-4o-mini": {InputPerM: 0.15, OutputPerM: 0.6},
+	// OpenAI (native). The gpt-5.5 / 5.4 family is current; 4o kept as legacy.
+	"gpt-5.5":      {InputPerM: 5.0, OutputPerM: 30.0},
+	"gpt-5.4-mini": {InputPerM: 0.75, OutputPerM: 4.5},
+	"gpt-5.4-nano": {InputPerM: 0.2, OutputPerM: 1.25},
+	"gpt-5.4":      {InputPerM: 2.5, OutputPerM: 15.0},
+	"gpt-4o-mini":  {InputPerM: 0.15, OutputPerM: 0.6},
+	"gpt-4o":       {InputPerM: 2.5, OutputPerM: 10.0},
 }
 
 // Table prices models. The zero value is usable (built-in rates only); use

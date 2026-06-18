@@ -30,6 +30,60 @@ func TestCost_KnownModel(t *testing.T) {
 	}
 }
 
+func TestCost_CurrentModels(t *testing.T) {
+	tbl := NewTable(nil)
+	cases := []struct {
+		model   string
+		in, out int64
+		want    float64
+	}{
+		// Anthropic (per platform.claude.com pricing, 2026-06-19).
+		{"claude-fable-5", 1_000_000, 1_000_000, 60.0},           // 10 + 50
+		{"claude-opus-4-8-20260101", 1_000_000, 1_000_000, 30.0}, // 5 + 25 (current Opus)
+		{"claude-opus-4-5", 1_000_000, 0, 5.0},                   // 5 (current Opus)
+		{"claude-opus-4-1-20250805", 1_000_000, 1_000_000, 90.0}, // 15 + 75 (deprecated 4.1)
+		{"claude-opus-4", 1_000_000, 0, 15.0},                    // retired 4.0
+		{"claude-haiku-4-5", 1_000_000, 1_000_000, 6.0},          // 1 + 5
+		// OpenAI (per developers.openai.com pricing, 2026-06-19).
+		{"gpt-5.5", 1_000_000, 1_000_000, 35.0},      // 5 + 30
+		{"gpt-5.4", 1_000_000, 1_000_000, 17.5},      // 2.5 + 15
+		{"gpt-5.4-mini", 1_000_000, 1_000_000, 5.25}, // 0.75 + 4.5
+		{"gpt-5.4-nano", 1_000_000, 0, 0.2},          // 0.2
+	}
+	for _, c := range cases {
+		usd, ok := tbl.Cost(c.model, c.in, c.out)
+		if !ok || !approx(usd, c.want) {
+			t.Errorf("Cost(%q) = %v ok=%v, want %v", c.model, usd, ok, c.want)
+		}
+	}
+}
+
+func TestCost_OpusVersionPrefixSplit(t *testing.T) {
+	// Longest-prefix must price current Opus (4.5+) at $5/$25 while deprecated
+	// 4.0/4.1 stay $15/$75 — a regression guard, since the shorter "claude-opus-4"
+	// prefix would otherwise misprice the newer (cheaper) models.
+	tbl := NewTable(nil)
+	if r, _ := tbl.Rate("claude-opus-4-8"); !approx(r.InputPerM, 5.0) || !approx(r.OutputPerM, 25.0) {
+		t.Errorf("opus-4-8 rate = %+v, want 5/25", r)
+	}
+	if r, _ := tbl.Rate("claude-opus-4-1-20250805"); !approx(r.InputPerM, 15.0) || !approx(r.OutputPerM, 75.0) {
+		t.Errorf("opus-4-1 rate = %+v, want 15/75", r)
+	}
+}
+
+func TestCost_SupersededGpt5Unpriced(t *testing.T) {
+	// Bare "gpt-5" (5.0) is superseded by 5.4/5.5 and no longer published, so it's
+	// unpriced (the user adds an override) rather than carrying a stale rate — while
+	// the 5.4/5.5 family that shares the stem is priced.
+	tbl := NewTable(nil)
+	if _, ok := tbl.Rate("gpt-5"); ok {
+		t.Error("bare gpt-5 should be unpriced after the refresh")
+	}
+	if _, ok := tbl.Rate("gpt-5.5"); !ok {
+		t.Error("gpt-5.5 should be priced")
+	}
+}
+
 func TestCost_DatedSnapshotResolvesToFamily(t *testing.T) {
 	tbl := NewTable(nil)
 	usd, ok := tbl.Cost("claude-sonnet-4-5-20250101", 1_000_000, 0)
