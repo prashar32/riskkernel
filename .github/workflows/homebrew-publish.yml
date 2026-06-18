@@ -1,0 +1,65 @@
+name: Publish Homebrew formula
+
+# Pushes the riskkernel formula to the Homebrew tap on each version tag, so
+# `brew install riskkernel` works (and stays current with releases).
+#
+# INERT until set up — needs two things (see docs/HOMEBREW.md):
+#   1. a tap repo: prashar32/homebrew-riskkernel
+#   2. a repo secret HOMEBREW_TAP_TOKEN: a fine-grained PAT with contents:write
+#      on that tap repo.
+# Without the secret this workflow logs a notice and exits 0 — it never blocks a
+# release (the binaries + GitHub release are cut by release.yml regardless).
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Publish formula to the Homebrew tap
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Render and push the formula
+        env:
+          TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+          TAP_REPO: prashar32/homebrew-riskkernel
+        run: |
+          set -euo pipefail
+          if [ -z "${TAP_TOKEN}" ]; then
+            echo "::notice::HOMEBREW_TAP_TOKEN not set — skipping Homebrew publish. See docs/HOMEBREW.md to enable."
+            exit 0
+          fi
+
+          # The version to publish: the tag that triggered this, or the latest
+          # release when run manually from a branch.
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(gh release view --repo "${GITHUB_REPOSITORY}" --json tagName -q .tagName | sed 's/^v//')"
+          fi
+          echo "Publishing Homebrew formula for v${version}"
+
+          # Pull the release's checksums and render the formula from them.
+          gh release download "v${version}" --repo "${GITHUB_REPOSITORY}" --pattern checksums.txt --dir /tmp/rk-rel --clobber
+          formula="$(bash scripts/gen-homebrew-formula.sh "${version}" /tmp/rk-rel/checksums.txt)"
+
+          # Commit it to the tap.
+          git clone --depth 1 "https://x-access-token:${TAP_TOKEN}@github.com/${TAP_REPO}.git" /tmp/tap
+          mkdir -p /tmp/tap/Formula
+          printf '%s\n' "${formula}" > /tmp/tap/Formula/riskkernel.rb
+          cd /tmp/tap
+          git config user.name "Adarsh Prashar"
+          git config user.email "adarsh.prashar32@gmail.com"
+          git add Formula/riskkernel.rb
+          if git diff --cached --quiet; then
+            echo "Formula already up to date for v${version} — nothing to push."
+            exit 0
+          fi
+          git commit -m "riskkernel ${version}"
+          git push

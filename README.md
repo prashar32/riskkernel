@@ -105,7 +105,8 @@ riskkernel init      # scaffold a .env + a runnable example in the current dir
 riskkernel serve     # start the daemon (reads .env)
 ```
 
-(or `make build` from a clone). Tab-complete the CLI in your shell:
+(or `make build` from a clone, or Homebrew — see [`docs/HOMEBREW.md`](docs/HOMEBREW.md)).
+Tab-complete the CLI in your shell:
 
 ```bash
 riskkernel completion bash > /etc/bash_completion.d/riskkernel        # bash
