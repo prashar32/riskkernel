@@ -91,6 +91,15 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
   Go/Python setup. The daemon pulls fresh on each run so a stale cached image can't
   skew the demo; a short README shows how to swap the mock for a real provider.
 
+### Changed
+- **Refreshed the built-in pricing table** to current published list prices
+  (Anthropic and OpenAI pricing pages, 2026-06-19). Adds Claude Fable 5 and the
+  OpenAI `gpt-5.5` / `gpt-5.4` family, and **fixes two now-incorrect prefixes**: the
+  `claude-opus-4` prefix was mispricing Opus 4.5–4.8 (now $5/$25 via longer-prefix
+  entries; Opus 4 / 4.1 stay $15/$75), and the stale `gpt-5` prefix was mispricing
+  `gpt-5.4`/`gpt-5.5` (bare `gpt-5` is now unpriced rather than wrong). Prices remain
+  fully overridable via `RISKKERNEL_PRICING_FILE`.
+
 ## [0.7.0] - 2026-06-14
 
 Reach and scale. RiskKernel now plugs into the whole Python agent ecosystem —
