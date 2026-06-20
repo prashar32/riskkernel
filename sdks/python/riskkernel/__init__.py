@@ -37,7 +37,7 @@ from .runtime import (
     governed_run,
 )
 
-__version__ = "0.8.0"
+__version__ = "0.9.0"
 
 __all__ = [
     "RiskKernel",

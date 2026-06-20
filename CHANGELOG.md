@@ -9,6 +9,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-06-20
+
+Packaging. The Homebrew tap goes live — `brew install prashar32/riskkernel/riskkernel`
+installs RiskKernel on macOS and Linux, joining `docker run`, `go install`, and the
+SDKs (PyPI / npm). A focused packaging release on top of v0.8.0's feature set; no
+runtime or API changes.
+
 ### Added
 - **Homebrew tap is live.** `brew install prashar32/riskkernel/riskkernel` now
   installs RiskKernel as a prebuilt binary on macOS and Linux. The
@@ -570,7 +577,8 @@ and a memory you own, in one self-hosted binary. Three integration surfaces
   (keyless) on each `v*` tag; GoReleaser binaries + checksums + GitHub release;
   `govulncheck` + CodeQL in CI. One-line `docker run` quickstart.
 
-[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/prashar32/riskkernel/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/prashar32/riskkernel/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/prashar32/riskkernel/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/prashar32/riskkernel/compare/v0.5.0...v0.6.0
