@@ -22,7 +22,7 @@ jobs:
     name: Publish formula to the Homebrew tap
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Render and push the formula
         env:
