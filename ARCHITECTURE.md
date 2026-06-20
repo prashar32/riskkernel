@@ -51,7 +51,7 @@ work around it. Stability of the public surface is governed by
 |---|---|
 | `governor` | **The disposer.** Hard per-run token/dollar/loop/wall-clock budgets + kill switch. The headline; most-tested. |
 | `pricing` | Deterministic USD pricing of token usage (static, config-overridable table). |
-| `provider` | LLM provider abstraction (`Provider` interface). Native Anthropic; OpenAI/Bedrock/Ollama stubbed. The only outbound LLM calls. |
+| `provider` | LLM provider abstraction (`Provider` interface). Native: Anthropic, OpenAI, Ollama, AWS Bedrock (SigV4-signed). The only outbound LLM calls. |
 | `runs` | The run manager — identity + lifecycle around a `governor.Run`; write-through persistence; crash-resume reload. |
 | `storage` | The `Store` interface + SQLite backend; embedded forward-only Goose migrations. The file the user owns. |
 | `approval` | Human-in-the-loop gate: deterministic policy match + a queue that blocks a side-effecting call until resolved. |
