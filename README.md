@@ -100,12 +100,15 @@ Prefer a native binary to Docker? Install the CLI with one command — no clone
 needed — and run it:
 
 ```bash
+brew install prashar32/riskkernel/riskkernel    # macOS / Linux (Homebrew)
+# or:
 go install github.com/prashar32/riskkernel/cmd/riskkernel@latest
+
 riskkernel init      # scaffold a .env + a runnable example in the current dir
 riskkernel serve     # start the daemon (reads .env)
 ```
 
-(or `make build` from a clone, or Homebrew — see [`docs/HOMEBREW.md`](docs/HOMEBREW.md)).
+(or `make build` from a clone; more on the tap in [`docs/HOMEBREW.md`](docs/HOMEBREW.md)).
 Tab-complete the CLI in your shell:
 
 ```bash
