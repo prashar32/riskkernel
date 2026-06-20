@@ -9,6 +9,13 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+### Added
+- **Homebrew tap is live.** `brew install prashar32/riskkernel/riskkernel` now
+  installs RiskKernel as a prebuilt binary on macOS and Linux. The
+  [`prashar32/homebrew-riskkernel`](https://github.com/prashar32/homebrew-riskkernel)
+  tap is published with the current formula; README and [`docs/HOMEBREW.md`](docs/HOMEBREW.md)
+  cover install and how the formula stays current on each release.
+
 ## [0.8.0] - 2026-06-20
 
 Broader reach. A native **AWS Bedrock** provider (hand-rolled SigV4, no AWS SDK)
