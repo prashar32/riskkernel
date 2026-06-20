@@ -29,6 +29,39 @@ RiskKernel is a **self-hosted agent reliability runtime** — the deterministic,
 
 It is **not** another gateway (LiteLLM/Portkey own routing), **not** another observability dashboard (Langfuse/Phoenix own traces), and **not** a content-guardrails engine (Guardrails AI/NeMo own PII/jailbreak). It interoperates with all of those and competes on the one thing nobody ships in a single self-hosted binary: **deterministic run controls** — the agent SRE layer.
 
+## See it work first
+
+If you only try one thing, run the no-key Docker demo. It starts a mock LLM, sends
+a deliberately runaway "agent" through RiskKernel, and stops at the hard loop
+budget with HTTP 402. No provider key, no local Go/Python setup:
+
+```bash
+cd examples/quickstart-compose
+docker compose up
+```
+
+Expected shape:
+
+```text
+call 1  -> 200 OK
+call 2  -> 200 OK
+call 3  -> 200 OK
+call 4  -> 200 OK
+call 5  -> 200 OK
+call 6  -> HTTP 402   RiskKernel HALTED the run:
+    {"code":"loop_budget_exceeded", ...}
+```
+
+The second proof is crash recovery: kill the daemon halfway through a run, restart
+it, and the agent resumes at step 6 with the governor still counting the 5 steps
+already spent.
+
+<div align="center">
+  <img src="examples/kill-9-resume/resume.gif" alt="RiskKernel crash-resume demo: a run does 5 steps, the daemon is killed, the run resumes at step 6, and the final loop counter is 10 instead of 15" width="820">
+  <br/>
+  <sub><b>A crashed run resumes without re-spending.</b> The daemon is killed after step 5; restart reloads the run, resumes at step 6, and the final loop counter is 10, not 15. (<a href="examples/kill-9-resume">runnable example</a>)</sub>
+</div>
+
 ## What it does
 
 | Capability | What it means |
@@ -48,6 +81,18 @@ It is **not** another gateway (LiteLLM/Portkey own routing), **not** another obs
 1. **Proxy (zero code).** Set one env var: `OPENAI_BASE_URL=http://localhost:7070/v1` (or `ANTHROPIC_BASE_URL` for `/v1/messages`). Every call — streaming or not — is intercepted, budgeted, logged, checkpointed, and forwarded to the real provider with your key. Native providers: Anthropic, OpenAI, Ollama (local), and AWS Bedrock; front the long tail (Gemini, Cohere, Mistral, …) with [LiteLLM upstream](docs/PROVIDERS.md).
 2. **SDK (deep control).** `pip install riskkernel` (Python) or `npm install @riskkernel/sdk` (TypeScript), then governed runs, per-step loop/time budgets, checkpoints, and approval gates. Framework adapters for the Claude Agent SDK, OpenAI Agents SDK, LangChain, LlamaIndex, CrewAI, AutoGen, and PydanticAI (Python), and the Vercel AI SDK (TypeScript).
 3. **OpenTelemetry (universal).** RiskKernel is an OTLP endpoint *and* emitter — ingest GenAI spans (`POST /v1/traces`) to meter apps already instrumented with OpenLLMetry / the OpenAI Agents SDK / the Vercel AI SDK, and export cost/halt/tool spans to the backend you already run.
+
+## Pick a demo
+
+| You want to see | Run this | What it proves |
+|---|---|---|
+| **A runaway agent stopped** | [`examples/quickstart-compose`](examples/quickstart-compose) | A hard loop budget halts a runaway app with no API key. |
+| **Crash recovery** | [`examples/kill-9-resume`](examples/kill-9-resume) | `kill -9` cannot reset the meter or make completed work run twice. |
+| **A real agent loop halted** | [`examples/codebase-qa`](examples/codebase-qa) | A codebase QA agent loops until RiskKernel stops it on budget. |
+| **Wrap an existing Python loop** | [`examples/wrap-your-agent`](examples/wrap-your-agent) | The SDK caps plain Python control flow in two minutes. |
+| **LangChain integration** | [`examples/langchain`](examples/langchain) | A LangChain callback binds steps to a governed run. |
+| **MCP tool governance** | [`examples/mcp`](examples/mcp) | Tool allowlists, approval gates, and audit trails work before the tool executes. |
+| **Observability dashboards** | [`examples/otel`](examples/otel) | Cost, budget, halt, and tool spans land in your OTel backend. |
 
 ## Quickstart (60 seconds)
 
@@ -127,25 +172,6 @@ npm install @riskkernel/sdk     # TypeScript → sdks/typescript
 
 See [`sdks/python`](sdks/python) and [`sdks/typescript`](sdks/typescript). Trace
 every run in your own backend: [`examples/otel`](examples/otel).
-
-Want to *see* the headline feature? [`examples/codebase-qa`](examples/codebase-qa)
-is a runnable agent that loops over a codebase until the governor kills it on its
-loop/dollar budget — the deterministic kill, end to end, with a real model.
-
-And the moat: [`examples/kill-9-resume`](examples/kill-9-resume) `kill -9`s the
-daemon mid-run and resumes without re-spending — `./demo.sh` scripts the whole
-crash-and-recover and proves the counter doesn't double, key-free.
-
-Brand new to the SDK? [`examples/wrap-your-agent`](examples/wrap-your-agent) is the
-no-key, two-minute version — a generic Python loop the governor caps at a loop
-budget, the deterministic kill with nothing running but the daemon.
-
-On LangChain? [`examples/langchain`](examples/langchain) wraps a LangChain loop
-with the callback handler and caps it at a loop budget — also key-free.
-
-Governing tools over MCP? [`examples/mcp`](examples/mcp) puts the MCP gateway in
-front of a stub server and shows a tool blocked by the allowlist, a side-effecting
-tool held for approval, and the audit trail — key-free.
 
 Hit a snag? `riskkernel doctor` diagnoses most setups, and the
 [troubleshooting guide](docs/TROUBLESHOOTING.md) maps the common errors —
