@@ -44,17 +44,17 @@ The core runtime is built and released:
   with adapters for the Claude Agent SDK, OpenAI Agents, LangChain, LlamaIndex,
   CrewAI, AutoGen, and PydanticAI (Python), and the Vercel AI SDK (TypeScript).
 - **Operability** — a Prometheus `/metrics` endpoint, a `riskkernel doctor` setup
-  check, shell completions, and a one-command `docker compose` quickstart.
+  check, shell completions, a one-command `docker compose` quickstart, and a
+  Homebrew tap (`brew install riskkernel`).
 - **Measured, low overhead** — the enforcement decision is ~150 ns and zero
   allocations per call, with a reproducible cost benchmark and a timed `kill -9`
   recovery benchmark (exact-once spend) behind the claims ([`docs/PERFORMANCE.md`](docs/PERFORMANCE.md)).
 
 ## Next
 
-Where the work is heading near-term:
-
-- **Easier install** — a Homebrew tap for `brew install riskkernel`
-  ([#97](https://github.com/prashar32/riskkernel/issues/97)).
+The headline runtime is built out. Near-term work is now driven by what real usage
+asks for — provider/adapter additions, pricing refreshes, and operability polish as
+they're requested. Have a need? Open an issue; it shapes this list directly.
 
 ## Exploring
 
