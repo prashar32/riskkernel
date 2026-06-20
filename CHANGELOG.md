@@ -9,6 +9,16 @@ surface is governed by [`COMPATIBILITY.md`](COMPATIBILITY.md).
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-06-20
+
+Broader reach. A native **AWS Bedrock** provider (hand-rolled SigV4, no AWS SDK)
+joins Anthropic / OpenAI / Ollama, with the long tail of providers documented via
+**LiteLLM upstream**. **`brew install`** packaging lands; **Datadog** and **SigNoz**
+dashboards join the Grafana one; and cross-run **spend rollups**
+(`riskkernel audit summary --by metadata.team`, with run name/tags on the OTel spans)
+make spend-by-team real. Plus a refreshed built-in pricing table tracking the current
+provider list prices. No breaking API changes; forward-compatible with v0.7.x state.
+
 ### Added
 - **Homebrew formula publishing.** A release workflow + formula generator publish the
   `riskkernel` formula to a Homebrew tap on each version tag, so `brew install
@@ -553,7 +563,8 @@ and a memory you own, in one self-hosted binary. Three integration surfaces
   (keyless) on each `v*` tag; GoReleaser binaries + checksums + GitHub release;
   `govulncheck` + CodeQL in CI. One-line `docker run` quickstart.
 
-[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/prashar32/riskkernel/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/prashar32/riskkernel/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/prashar32/riskkernel/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/prashar32/riskkernel/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/prashar32/riskkernel/compare/v0.4.0...v0.5.0
