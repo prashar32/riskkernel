@@ -39,7 +39,7 @@
     "@types/node": "^22",
     "tsup": "^8",
     "typescript": "^5",
-    "vitest": "^3.2.6"
+    "vitest": "^5.0.0"
   },
   "peerDependencies": {
     "@ai-sdk/provider": ">=2"
